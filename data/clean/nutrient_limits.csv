@@ -1,0 +1,12 @@
+nutrient,unit,rda_men,rda_women,upper_limit,note,url,source
+Vitamin D,mcg,15,15,100,"15 mcg = 600 IU; UL 100 mcg = 4,000 IU",https://ods.od.nih.gov/factsheets/VitaminD-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Calcium,mg,1000,1000,2500,"UL 2,000 mg from age 51",https://ods.od.nih.gov/factsheets/Calcium-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Iron,mg,8,18,45,Women 19-50 need more because of periods,https://ods.od.nih.gov/factsheets/Iron-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Magnesium,mg,400,310,350,"UL applies to supplements and medicines only, not food; RDA rises to 420/320 from age 31",https://ods.od.nih.gov/factsheets/Magnesium-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Vitamin B12,mcg,2.4,2.4,,No UL set,https://ods.od.nih.gov/factsheets/VitaminB12-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Vitamin C,mg,90,75,2000,Smokers need 35 mg more,https://ods.od.nih.gov/factsheets/VitaminC-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Zinc,mg,11,8,40,,https://ods.od.nih.gov/factsheets/Zinc-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Iodine,mcg,150,150,1100,"Pregnancy 220, breastfeeding 290",https://ods.od.nih.gov/factsheets/Iodine-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Folate,mcg DFE,400,400,1000,UL applies to folic acid from supplements and fortified food,https://ods.od.nih.gov/factsheets/Folate-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Vitamin A,mcg RAE,900,700,3000,UL applies to preformed vitamin A (retinol),https://ods.od.nih.gov/factsheets/VitaminA-HealthProfessional/,NIH Office of Dietary Supplements (US)
+Potassium,mg,3400,2600,,"Adequate Intake, not RDA; no UL set",https://ods.od.nih.gov/factsheets/Potassium-HealthProfessional/,NIH Office of Dietary Supplements (US)
