@@ -132,7 +132,7 @@ def sources_for(topics, per_table=2):
     return unique[:10]
 
 
-def ask_model(question, summary, sources, past):
+def _model_request(question, summary, sources, past, stream):
     base = os.environ.get("LLM_BASE_URL", "http://localhost:8088/v1")
     evidence = "\n\n".join(f"[{i}] {s['source']}: {s['title']}\n{s['text']}"
                            for i, s in enumerate(sources, 1))
@@ -148,14 +148,34 @@ def ask_model(question, summary, sources, past):
         "model": model,
         "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
         "temperature": 0.2,
+        "stream": stream,
     }).encode()
     req = urllib.request.Request(f"{base}/chat/completions", data=body, headers={
         "Content-Type": "application/json",
         "Authorization": f"Bearer {os.environ.get('LLM_API_KEY', 'rt-local')}",
     })
-    with urllib.request.urlopen(req, timeout=int(os.environ.get("LLM_TIMEOUT", "600"))) as r:
-        text = json.load(r)["choices"][0]["message"]["content"]
+    return urllib.request.urlopen(req, timeout=int(os.environ.get("LLM_TIMEOUT", "600")))
+
+
+def _clean(text):
     return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.S).strip()
+
+
+def ask_model(question, summary, sources, past):
+    with _model_request(question, summary, sources, past, stream=False) as r:
+        return _clean(json.load(r)["choices"][0]["message"]["content"])
+
+
+def stream_model(question, summary, sources, past):
+    """Yield the answer in pieces as the model writes it (OpenAI-style server-sent events)."""
+    with _model_request(question, summary, sources, past, stream=True) as r:
+        for raw in r:
+            line = raw.decode("utf-8").strip()
+            if not line.startswith("data:") or line == "data: [DONE]":
+                continue
+            delta = json.loads(line[5:])["choices"][0].get("delta", {}).get("content")
+            if delta:
+                yield delta
 
 
 def suggestion_in(text):
@@ -201,6 +221,11 @@ def prepare(question, user_id, as_of=None):
 def respond(prep):
     """Model answer for a prepared check-in, then save the check-in to memory."""
     text = ask_model(prep["question"], prep["summary"], prep["sources"], prep["past"])
+    return finish(prep, text)
+
+
+def finish(prep, text):
+    text = _clean(text)
     saved = remember_checkin(prep["user"], prep["question"], prep["summary"], prep["topics"], text)
     return {"text": text, "saved": saved, "disclaimer": safety.DISCLAIMER}
 

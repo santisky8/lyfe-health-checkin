@@ -78,11 +78,36 @@ class Handler(BaseHTTPRequestHandler):
                 with _lock:
                     prep = _prepared.pop(body["id"])
                 return self._send(200, checkin.respond(prep))
+            if self.path == "/api/stream":
+                with _lock:
+                    prep = _prepared.pop(body["id"])
+                return self._stream(prep)
             if self.path == "/api/note":
                 return self._send(200, checkin.note(body["user"], body["text"].strip()[:500]))
             self._send(404, {"error": "not found"})
         except Exception as e:
             self._send(500, {"error": str(e)[:300]})
+
+    def _stream(self, prep):
+        """Server-sent events: {"delta": "..."} while the model writes, then {"done": {...}}."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+
+        def emit(obj):
+            self.wfile.write(f"data: {json.dumps(obj)}\n\n".encode())
+            self.wfile.flush()
+
+        text = ""
+        try:
+            for piece in checkin.stream_model(prep["question"], prep["summary"], prep["sources"],
+                                              prep["past"]):
+                text += piece
+                emit({"delta": piece})
+            emit({"done": checkin.finish(prep, text)})
+        except Exception as e:
+            emit({"error": str(e)[:300]})
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s\n" % (fmt % args))
