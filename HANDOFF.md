@@ -29,6 +29,13 @@ github.com/Meterless/Meterless, engines/ folder (Apache-2.0, TypeScript, Node 24
   and topic routing, verify with SCOUT_IMPL=... npm run evals.
 - Nightshift (Windows app, unsigned) is optional; only for the NVIDIA prize.
 
+## Zetaris (done 2026-10-25, ~3 PM Toronto)
+Running locally from ~/Downloads/zetaris/zetaris-platform (docker compose; Docker Desktop must be
+on). Registry login lives in ~/.docker-zetaris (DOCKER_CONFIG) because `pass` is not set up.
+Tables WHY_CHECKIN.{user_log,nutrient_limits,myhealthfinder,medlineplus,pubmed} registered
+(zetaris/load.sql), counts match. Agent queries Zetaris when ZETARIS_URL is in .env.local.
+After the hackathon: `docker compose stop` (never `down -v`), then stop Docker Desktop.
+
 ## Blockers
 1. (old note) Meterless (Nightshift) supports only Windows 10/11, Mac M5+, DGX Spark. Web edition and Mac
    M1-M4 have no local endpoint. Linux not listed. Endpoint when installed:

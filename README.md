@@ -14,8 +14,10 @@ doctor and what to tell them. Danger signs skip the advice and show emergency he
 1. **Danger-sign filter** (`agent/safety.py`): chest pain, stroke signs, trouble breathing,
    self-harm and similar go straight to emergency help. No model call.
 2. **Topic routing**: the question picks topics (sleep, fatigue, activity, nutrition...).
-3. **SQL over federated sources** (`agent/store.py`): the user's last 14 days plus passages
-   from each source. Today a local SQLite stand-in; Zetaris next.
+3. **SQL over federated sources through Zetaris** (`agent/store.py`): the user's last 14 days
+   plus passages from each source, queried through the Zetaris Lightning REST API. The five
+   sources are registered as Lightning filestore tables in database `WHY_CHECKIN`
+   (`zetaris/load.sql`). A local SQLite copy is the offline fallback.
 4. **Local model** through an OpenAI-compatible endpoint (Meterless), so health data stays on
    the user's machine.
 5. **Cited answer**: user numbers cited as `[log]`, sources as `[n]`, plus a disclaimer.
@@ -36,6 +38,9 @@ Python 3.10+, standard library only.
 
 ```sh
 ./load_all.sh                                   # pull sources, build data/checkin.sqlite
+# Zetaris: copy data/clean/<table>/ into the driver's customer-data/shared/why_checkin/ and run
+# zetaris/load.sql with lightning-sql.sh; then set ZETARIS_URL, ZETARIS_EMAIL and
+# ZETARIS_PASSWORD in .env.local (gitignored). Without ZETARIS_URL the agent uses SQLite.
 python3 agent/checkin.py --dry-run "Why am I tired every afternoon?"   # evidence only
 LLM_BASE_URL=http://<meterless-host>:8088/v1 LLM_API_KEY=<key> LLM_MODEL=<model> \
   python3 agent/checkin.py "Why am I tired every afternoon?"

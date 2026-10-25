@@ -75,7 +75,8 @@ def topics_for(question):
 
 def user_summary(user_id, days=14):
     rows = store.query(
-        "SELECT * FROM user_log WHERE user_id = ? ORDER BY day DESC LIMIT ?", (user_id, days))
+        f"SELECT * FROM {store.table('user_log')} WHERE user_id = ? ORDER BY day DESC LIMIT ?",
+        (user_id, days))
     if not rows:
         return None
     sleep = [int(r["minutes_asleep"]) for r in rows if r["minutes_asleep"]]
@@ -102,7 +103,7 @@ def sources_for(topics, per_table=2):
                         ("pubmed", "title || ' (' || journal || ', ' || year || ')'")]:
         found += store.query(
             f"SELECT {cols} AS title, substr(text, 1, 900) AS text, url, source "
-            f"FROM {table} WHERE topic IN ({marks}) AND text != '' LIMIT ?",
+            f"FROM {store.table(table)} WHERE topic IN ({marks}) AND text != '' LIMIT ?",
             (*topics, per_table * len(topics)))
     seen, unique = set(), []
     for s in found:
