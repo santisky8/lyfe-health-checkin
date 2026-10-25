@@ -39,5 +39,9 @@ def feedback(user_id, memory_id, kind):
     return _call({"op": "feedback", "user": user_id, "id": memory_id, "kind": kind})
 
 
+def all_memories(user_id):
+    return _call({"op": "list", "user": user_id})
+
+
 def history(user_id, memory_id):
     return _call({"op": "history", "user": user_id, "id": memory_id})

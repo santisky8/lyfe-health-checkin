@@ -36,6 +36,12 @@ Tables LYFE_HEALTH_CHECKIN.{user_log,nutrient_limits,myhealthfinder,medlineplus,
 (zetaris/load.sql), counts match. Agent queries Zetaris when ZETARIS_URL is in .env.local.
 After the hackathon: `docker compose stop` (never `down -v`), then stop Docker Desktop.
 
+## App (2026-10-25 evening)
+`python3 server.py` -> http://localhost:8765 (web/index.html, stdlib server). Prepare step is
+fast; local qwen3:8b answer takes 2-5 min on this CPU while Zetaris runs. Demo story: person
+1503960366, week to 2016-04-25 (5.7 h sleep), note "went to bed earlier", week to 2016-05-12
+(6.3 h). Reset demo memory: delete data/memory/1503960366/.
+
 ## Blockers
 1. (old note) Meterless (Nightshift) supports only Windows 10/11, Mac M5+, DGX Spark. Web edition and Mac
    M1-M4 have no local endpoint. Linux not listed. Endpoint when installed:

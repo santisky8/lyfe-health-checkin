@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyfe Health Check-In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: conversation column on the left, "why this answer" evidence panel on the right */
+:root{
+  --bg:#f2f5f3; --surface:#ffffff; --ink:#14221c; --muted:#5b6b63; --line:#d7e0db;
+  --accent:#0e6b5a; --accent-soft:#e1f0eb; --amber:#9a5b00; --amber-soft:#fbf0dc;
+  --danger:#b3261e; --danger-soft:#fbe7e5; --code:#eef3f0;
+  --display:"Sora",system-ui,sans-serif; --body:"Source Sans 3",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1714; --surface:#16211c; --ink:#e3ece7; --muted:#9aaca3; --line:#26352e;
+  --accent:#4cc3a6; --accent-soft:#163a31; --amber:#f0b25a; --amber-soft:#33270f;
+  --danger:#ff8a80; --danger-soft:#3a1715; --code:#1c2a24; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.55 var(--body)}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;
+  padding:18px max(20px,4vw);border-bottom:1px solid var(--line);background:var(--surface)}
+.brand{font:700 1.25rem var(--display);letter-spacing:-.01em}
+.brand span{color:var(--accent)}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:.9rem;color:var(--muted)}
+select,input,textarea,button{font:inherit;color:inherit}
+select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:28px;
+  padding:28px max(20px,4vw) 48px;max-width:1380px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.col{min-width:0;display:flex;flex-direction:column;gap:18px}
+h2{font:600 1rem var(--display);margin:0}
+.ask{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.ask textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:8px;
+  padding:10px 12px;background:var(--bg)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 12px;font-size:.88rem;cursor:pointer;color:var(--muted)}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.primary{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 18px;font-weight:600;cursor:pointer;margin-left:auto}
+@media (prefers-color-scheme:dark){.primary{color:#04140f}}
+.primary:disabled{opacity:.5;cursor:wait}
+button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.turn{display:flex;flex-direction:column;gap:10px}
+.q{align-self:flex-end;background:var(--accent-soft);border-radius:12px 12px 2px 12px;padding:10px 14px;max-width:85%}
+.a{background:var(--surface);border:1px solid var(--line);border-radius:12px 12px 12px 2px;padding:16px 18px}
+.a p{margin:0 0 .7em}.a p:last-child{margin:0}
+.urgent{background:var(--danger-soft);border:1px solid var(--danger);color:var(--ink);border-radius:10px;padding:16px 18px}
+.urgent strong{color:var(--danger)}
+.cite{display:inline-block;font:500 .72rem var(--mono);padding:1px 6px;border-radius:4px;background:var(--code);
+  color:var(--accent);text-decoration:none;vertical-align:1px;cursor:pointer;border:0}
+.cite.log{color:var(--amber);background:var(--amber-soft)}
+.cite.mem{color:#6b4fbb;background:#ece7fa}
+@media (prefers-color-scheme:dark){.cite.mem{color:#c3b2ff;background:#2a2342}}
+.wait{color:var(--muted);font-style:italic}
+.disclaimer{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+.note{display:flex;gap:8px;margin-top:12px}
+.note input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
+.note button{border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:8px;padding:8px 12px;cursor:pointer}
+.empty{color:var(--muted);padding:6px 2px}
+/* evidence panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;position:sticky;top:16px;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{flex:1;border:0;background:transparent;padding:11px 10px;font:600 .85rem var(--display);color:var(--muted);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tabpane{padding:16px 18px;max-height:calc(100vh - 140px);overflow:auto}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.step{display:grid;grid-template-columns:22px 1fr;gap:10px}
+.dot{width:14px;height:14px;border-radius:50%;margin-top:5px;border:2px solid var(--line)}
+.step.done .dot{background:var(--accent);border-color:var(--accent)}
+.step.run .dot{border-color:var(--accent);border-top-color:transparent;animation:spin 1s linear infinite}
+.step.stop .dot{background:var(--danger);border-color:var(--danger)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.step.run .dot{animation:none}}
+.step b{font-weight:600}.step small{display:block;color:var(--muted)}
+.sponsor{font:500 .7rem var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+pre{background:var(--code);border-radius:6px;padding:8px 10px;font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-word;margin:6px 0 0}
+details summary{cursor:pointer;color:var(--accent);font-size:.9rem}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--bg);border-radius:8px;padding:10px 12px}
+.stat .v{font:600 1.35rem var(--display);font-variant-numeric:tabular-nums}
+.stat .l{font-size:.82rem;color:var(--muted)}
+.pill{display:inline-block;font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:4px}
+.pill.ok{background:var(--accent-soft);color:var(--accent)}.pill.no{background:var(--amber-soft);color:var(--amber)}
+svg text{fill:var(--muted);font:10px var(--body)}
+.src{padding:10px 0;border-bottom:1px solid var(--line)}.src:last-child{border:0}
+.src a{color:var(--ink);font-weight:600;text-decoration:none}.src a:hover{color:var(--accent)}
+.src .from{font-size:.82rem;color:var(--muted)}
+.src.flash{background:var(--accent-soft);transition:background 1s}
+.mem{padding:10px 0;border-bottom:1px solid var(--line)}.mem:last-child{border:0}
+.mem .meta{font:12px var(--mono);color:var(--muted)}
+.bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px;max-width:160px}
+.bar i{display:block;height:100%;background:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Lyfe Health <span>Check-In</span></div>
+  <div class="controls">
+    <label>Person <select id="user"></select></label>
+    <label>Check in as of <select id="asof"></select></label>
+  </div>
+</header>
+
+<main>
+  <section class="col" aria-label="Check-in">
+    <div class="ask">
+      <h2>What's on your mind this week?</h2>
+      <textarea id="question" placeholder="Ask a why question, like: Why am I tired every afternoon?"></textarea>
+      <div class="row">
+        <button class="chip" data-q="Why am I tired every afternoon?">Why am I tired every afternoon?</button>
+        <button class="chip" data-q="Why don't I sleep well?">Why don't I sleep well?</button>
+        <button class="chip" data-q="Why do I have so little energy?">Why do I have so little energy?</button>
+        <button class="primary" id="go">Check in</button>
+      </div>
+    </div>
+    <div id="thread" class="col"></div>
+  </section>
+
+  <aside class="panel" aria-label="Why this answer">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="false" data-tab="how">How it answered</button>
+      <button role="tab" aria-selected="true" data-tab="week">Your week</button>
+      <button role="tab" aria-selected="false" data-tab="sources">Sources</button>
+      <button role="tab" aria-selected="false" data-tab="memory">Memory</button>
+    </div>
+    <div class="tabpane" id="pane-how" hidden><p class="empty">Ask a question. Each step the agent takes shows here: the safety check, the Zetaris queries, what it remembers and the local model.</p></div>
+    <div class="tabpane" id="pane-week"></div>
+    <div class="tabpane" id="pane-sources" hidden><p class="empty">Sources appear after a check-in.</p></div>
+    <div class="tabpane" id="pane-memory" hidden></div>
+  </aside>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let current = {sources: [], past: []};
+
+async function api(path, body) {
+  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : {});
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  document.querySelectorAll(".tabpane").forEach(p => p.hidden = p.id !== "pane-" + name);
+}
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+document.querySelectorAll(".chip[data-q]").forEach(b => b.onclick = () => { $("#question").value = b.dataset.q; $("#question").focus(); });
+
+// Answer text: escape, then bold, paragraphs and citation chips.
+function render(text) {
+  let h = esc(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  h = h.replace(/\[(log|checks)\]/g, '<button class="cite log" data-go="week" title="Your own log, from Zetaris">your log</button>');
+  h = h.replace(/\[m(\d+)\]/g, '<button class="cite mem" data-go="memory" title="A past check-in, from H-MEM memory">memory $1</button>');
+  h = h.replace(/\[(\d+)\]/g, '<button class="cite" data-src="$1" title="Open source $1">$1</button>');
+  return h.split(/\n\s*\n/).map(p => "<p>" + p.replace(/\n/g, "<br>") + "</p>").join("");
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest(".cite"); if (!t) return;
+  if (t.dataset.go) return showTab(t.dataset.go);
+  showTab("sources");
+  const el = document.getElementById("src-" + t.dataset.src);
+  if (el) { el.scrollIntoView({block:"center"}); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1200); }
+});
+
+function steps(list) {
+  $("#pane-how").innerHTML = '<ol class="steps">' + list.map(s =>
+    `<li class="step ${s.state}"><span class="dot"></span><div><span class="sponsor">${esc(s.by)}</span><br><b>${esc(s.title)}</b><small>${s.detail}</small>${s.more || ""}</div></li>`
+  ).join("") + "</ol>";
+}
+
+async function loadUsers() {
+  const users = await api("/api/users");
+  $("#user").innerHTML = users.map(u => `<option value="${esc(u.user_id)}">Person ${esc(u.user_id.slice(-4))} (${esc(u.days)} days)</option>`).join("");
+  $("#user").value = users.some(u => u.user_id === "1503960366") ? "1503960366" : users[0].user_id;
+  $("#user").onchange = () => { weeks(users); refresh(); };
+  $("#asof").onchange = refreshWeek;
+  weeks(users);
+}
+function weeks(users) {
+  const u = users.find(x => x.user_id === $("#user").value);
+  const out = []; let d = new Date(u.first_day + "T12:00:00"); d.setDate(d.getDate() + 6);
+  const last = new Date(u.last_day + "T12:00:00");
+  while (d <= last) { out.push(d.toISOString().slice(0, 10)); d.setDate(d.getDate() + 7); }
+  if (!out.length || out[out.length - 1] !== u.last_day) out.push(u.last_day);
+  $("#asof").innerHTML = out.map((w, i) => `<option value="${w}">Week ${i + 1} (to ${w})</option>`).join("");
+}
+function refresh() { refreshWeek(); refreshMemory(); }
+
+async function refreshWeek(summary) {
+  const rows = await api(`/api/log?user=${encodeURIComponent($("#user").value)}&as_of=${$("#asof").value}`);
+  const s = summary && summary.summary ? summary.summary : null;
+  const W = 340, H = 130, pad = 22, n = rows.length, bw = (W - pad) / Math.max(n, 1);
+  const hrs = rows.map(r => r.minutes_asleep ? r.minutes_asleep / 60 : null);
+  const y = v => H - 18 - (v / 10) * (H - 30);
+  const bars = rows.map((r, i) => {
+    const v = hrs[i], x = pad + i * bw, recent = i >= n - 7;
+    return v == null ? `<rect x="${x + 1}" y="${y(0) - 2}" width="${bw - 2}" height="2" fill="var(--line)"/>`
+      : `<rect x="${x + 1}" y="${y(v)}" width="${bw - 2}" height="${y(0) - y(v)}" rx="2" fill="${recent ? "var(--accent)" : "var(--line)"}"><title>${r.day}: ${v.toFixed(1)} h</title></rect>`;
+  }).join("");
+  const chart = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Hours of sleep per night, last ${n} days">
+    ${[0, 5, 10].map(v => `<text x="0" y="${y(v) + 3}">${v}h</text>`).join("")}
+    ${bars}
+    <line x1="${pad}" x2="${W}" y1="${y(7)}" y2="${y(7)}" stroke="var(--amber)" stroke-dasharray="4 3"/>
+    <text x="${W - 70}" y="${y(7) - 4}" style="fill:var(--amber)">7 h guideline</text>
+    <text x="${pad}" y="${H - 4}">${rows[0] ? rows[0].day : ""}</text><text x="${W - 58}" y="${H - 4}">${rows[n - 1] ? rows[n - 1].day : ""}</text></svg>`;
+  const last7 = rows.slice(-7), sl = last7.map(r => r.minutes_asleep).filter(Boolean);
+  const avgSleep = sl.length ? sl.reduce((a, b) => a + +b, 0) / sl.length / 60 : null;
+  const avgSteps = last7.reduce((a, r) => a + +r.steps, 0) / Math.max(last7.length, 1);
+  const active = last7.reduce((a, r) => a + +r.active_minutes, 0) / Math.max(last7.length, 1) * 7;
+  const pill = ok => ok ? '<span class="pill ok">meets guideline</span>' : '<span class="pill no">below guideline</span>';
+  $("#pane-week").innerHTML = `
+    <div class="stats">
+      <div class="stat"><div class="v">${avgSleep ? avgSleep.toFixed(1) + " h" : "n/a"}</div><div class="l">sleep a night, last 7 days ${avgSleep ? pill(avgSleep >= 7) : ""}</div></div>
+      <div class="stat"><div class="v">${Math.round(active)} min</div><div class="l">active a week ${pill(active >= 150)}</div></div>
+      <div class="stat"><div class="v">${Math.round(avgSteps).toLocaleString()}</div><div class="l">steps a day</div></div>
+      <div class="stat"><div class="v">${sl.filter(m => m < 420).length} of ${sl.length}</div><div class="l">nights under 7 h</div></div>
+    </div>
+    <h2>Sleep, last ${n} days</h2>${chart}
+    <p class="empty" style="font-size:.85rem">Real Fitbit data from a consenting participant (Furberg et al., CC BY 4.0), queried through Zetaris. Green bars are the week this check-in looks at.</p>`;
+}
+
+async function refreshMemory() {
+  const mems = await api(`/api/memory?user=${encodeURIComponent($("#user").value)}`);
+  $("#pane-memory").innerHTML = mems.length ? `<p class="empty" style="margin-top:0">Stored by the Meterless H-MEM engine. Every memory keeps its source, confidence and time, and every change goes to an append-only ledger.</p>` +
+    mems.slice().reverse().map(m => `<div class="mem"><div class="meta">${esc(m.id)} · ${esc(m.learnedAt.slice(0, 16).replace("T", " "))} · ${esc(m.source)}</div>
+      <div>${esc(m.content)}</div><div class="bar" title="confidence ${m.confidence.toFixed(2)}"><i style="width:${m.confidence * 100}%"></i></div></div>`).join("")
+    : '<p class="empty">No memories yet. After your first check-in, the agent remembers what it found and what it suggested, so next week it can follow up.</p>';
+}
+
+function showSources(list) {
+  current.sources = list;
+  $("#pane-sources").innerHTML = list.map((s, i) => `<div class="src" id="src-${i + 1}"><span class="cite">${i + 1}</span>
+    <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a><div class="from">${esc(s.source)}</div></div>`).join("");
+}
+
+async function checkIn() {
+  const question = $("#question").value.trim(); if (!question) return $("#question").focus();
+  const user = $("#user").value, as_of = $("#asof").value;
+  $("#go").disabled = true;
+  const turn = document.createElement("div"); turn.className = "turn";
+  turn.innerHTML = `<div class="q">${esc(question)}</div><div class="a"><span class="wait">Checking your week…</span></div>`;
+  $("#thread").prepend(turn);
+  const box = turn.querySelector(".a");
+  showTab("how");
+  steps([{state:"run", by:"Lyfe Health", title:"Safety check", detail:"Looking for danger signs first"}]);
+  try {
+    const prep = await api("/api/prepare", {question, user, as_of});
+    if (prep.urgent) {
+      steps([{state:"stop", by:"Lyfe Health", title:"Danger sign found", detail:"Advice skipped. Emergency help shown instead. Logged to memory."}]);
+      box.outerHTML = `<div class="urgent"><strong>Please get help now.</strong><p>${esc(prep.urgent)}</p></div>`;
+      refreshMemory(); return;
+    }
+    if (prep.error) throw new Error(prep.error);
+    const s = prep.summary;
+    const sqlMore = `<details><summary>Show the ${prep.sql.length} SQL queries</summary>${prep.sql.map(q => `<pre>${esc(q)}</pre>`).join("")}</details>`;
+    const base = [
+      {state:"done", by:"Lyfe Health", title:"Safety check passed", detail:"No danger signs in the question"},
+      {state:"done", by:"Zetaris", title:`Joined ${prep.sql.length} sources in one place`, detail:`Your log (${esc(s.from)} to ${esc(s.to)}) plus ${prep.sources.length} passages from MyHealthfinder, MedlinePlus and PubMed on ${esc(prep.topics.join(", "))}`, more: sqlMore},
+      {state:"done", by:"Meterless H-MEM", title: prep.past.length ? `Remembered ${prep.past.length} past check-in${prep.past.length > 1 ? "s" : ""}` : "No past check-ins yet", detail: prep.past.length ? prep.past.map(m => esc(m.content.slice(0, 90)) + "…").join("<br>") : "This is the first one, so there's nothing to follow up on"},
+    ];
+    steps([...base, {state:"run", by:"Local model", title:"Writing your answer", detail:'<span id="tick">0 s</span> · runs on this computer, so your data stays here'}]);
+    showSources(prep.sources); current.past = prep.past; refreshWeek(prep);
+    const t0 = Date.now(), timer = setInterval(() => { const el = $("#tick"); if (el) el.textContent = Math.round((Date.now() - t0) / 1000) + " s"; }, 1000);
+    box.innerHTML = `<span class="wait">I have your numbers and ${prep.sources.length} trusted sources. Writing your answer…</span>`;
+    const out = await api("/api/respond", {id: prep.id});
+    clearInterval(timer);
+    steps([...base,
+      {state:"done", by:"Local model", title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites your log, a source or a memory"},
+      {state:"done", by:"Meterless H-MEM", title:`Saved as ${esc(out.saved.id)}`, detail:"Next check-in will follow up on this suggestion"}]);
+    box.innerHTML = render(out.text) + `<div class="note"><input id="n-${out.saved.id}" placeholder="Later: what did you try, and how did it go?"><button>Save</button></div>` +
+      `<div class="disclaimer">${esc(out.disclaimer)}</div>`;
+    box.querySelector(".note button").onclick = async ev => {
+      const inp = box.querySelector(".note input"); if (!inp.value.trim()) return;
+      const m = await api("/api/note", {user, text: inp.value});
+      ev.target.textContent = "Saved"; ev.target.disabled = true; inp.disabled = true; refreshMemory();
+    };
+    refreshMemory();
+  } catch (e) {
+    box.innerHTML = `<span class="wait">Something went wrong: ${esc(e.message)}</span>`;
+  } finally { $("#go").disabled = false; }
+}
+$("#go").onclick = checkIn;
+$("#question").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) checkIn(); });
+loadUsers().then(refresh).catch(e => $("#thread").innerHTML = `<p class="empty">Could not load data: ${esc(e.message)}. Is Zetaris running?</p>`);
+</script>
+</body>
+</html>

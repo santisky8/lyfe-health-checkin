@@ -7,6 +7,7 @@
 //   {"op":"recall","user":"1503960366","query":"why am I tired","topN":5}
 //   {"op":"feedback","user":"1503960366","id":"mem-...","kind":"helpful|not_helpful|wrong"}
 //   {"op":"history","user":"1503960366","id":"mem-..."}
+//   {"op":"list","user":"1503960366"}
 //
 // Run with Node 22.7+: node --experimental-transform-types meterless/hmem_cli.ts
 import { readFileSync } from "node:fs";
@@ -61,6 +62,9 @@ switch (req.op) {
   case "feedback":
     hmem.feedback(req.id, req.kind);
     out = view(hmem.store.get(req.id)!);
+    break;
+  case "list":
+    out = hmem.store.all().map(view).sort((a, b) => a.learnedAt.localeCompare(b.learnedAt));
     break;
   case "history":
     out = hmem.ledger.history(req.id);

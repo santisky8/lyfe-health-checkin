@@ -52,6 +52,11 @@ LLM_BASE_URL=http://<meterless-host>:8088/v1 LLM_API_KEY=<key> LLM_MODEL=<model>
   python3 agent/checkin.py "Why am I tired every afternoon?"
 ```
 
+**Web app:** `python3 server.py`, then open http://localhost:8765. Pick a person and a week,
+ask a why question, and the right-hand panel shows each step: the safety check, the SQL sent
+to Zetaris, the memories H-MEM recalled, the model, and the memory it saved. Settings
+(`ZETARIS_*`, `LLM_*`) come from `.env.local`.
+
 `--user <id>` picks one of the 30 Fitbit users (default `1503960366`).
 `--note "Went to bed earlier, less tired"` saves what the user tried and how it went.
 Memory needs Node 22.7+ (it runs the TypeScript engine with `--experimental-transform-types`).

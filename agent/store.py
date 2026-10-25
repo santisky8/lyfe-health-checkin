@@ -12,6 +12,7 @@ CLEAN = Path(__file__).resolve().parent.parent / "data" / "clean"
 DB = CLEAN.parent / "checkin.sqlite"
 ZETARIS_DB = "LYFE_HEALTH_CHECKIN"
 _session = {}
+executed = []  # SQL sent in the current check-in, shown in the app as evidence
 
 
 def backend():
@@ -66,6 +67,7 @@ def _zetaris(sql, retry=True):
 
 
 def query(sql, params=()):
+    executed.append(_inline(sql, params))
     if backend() == "zetaris":
         return _zetaris(_inline(sql, params))
     con = sqlite3.connect(DB)

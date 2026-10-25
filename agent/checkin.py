@@ -177,29 +177,53 @@ def remember_checkin(user_id, question, summary, topics, text):
                            refs=[f"{store.table('user_log')}:{summary['from']}..{summary['to']}"])
 
 
-def answer(question, user_id, dry_run=False, as_of=None):
+def prepare(question, user_id, as_of=None):
+    """Everything the answer is built from, gathered before the model runs: the safety check,
+    the user's numbers and source passages from Zetaris, and past check-ins from H-MEM."""
+    store.executed.clear()
     urgent = safety.check(question)
     if urgent:
         memory.remember(user_id, f"Danger sign reported: \"{question}\". Sent to emergency help.",
                         source="safety_filter", tags=["danger"], confidence=1.0)
-        return urgent
+        return {"question": question, "user": user_id, "urgent": urgent}
     summary = user_summary(user_id, as_of=as_of)
     if summary is None:
-        return f"No log found for user {user_id}."
+        return {"question": question, "user": user_id, "error": f"No log found for user {user_id}."}
     topics = topics_for(question)
-    sources = sources_for(topics)
-    past = memory.recall(user_id, f"{question} {' '.join(topics)}", top_n=3)
+    return {
+        "question": question, "user": user_id, "urgent": None, "summary": summary,
+        "topics": topics, "sources": sources_for(topics),
+        "past": memory.recall(user_id, f"{question} {' '.join(topics)}", top_n=3),
+        "sql": list(store.executed), "backend": store.backend(),
+    }
+
+
+def respond(prep):
+    """Model answer for a prepared check-in, then save the check-in to memory."""
+    text = ask_model(prep["question"], prep["summary"], prep["sources"], prep["past"])
+    saved = remember_checkin(prep["user"], prep["question"], prep["summary"], prep["topics"], text)
+    return {"text": text, "saved": saved, "disclaimer": safety.DISCLAIMER}
+
+
+def answer(question, user_id, dry_run=False, as_of=None):
+    prep = prepare(question, user_id, as_of)
+    if prep.get("urgent") or prep.get("error"):
+        return prep.get("urgent") or prep["error"]
     if dry_run:
-        return json.dumps({"summary": summary, "past": past, "sources": sources}, indent=1)
-    text = ask_model(question, summary, sources, past)
-    saved = remember_checkin(user_id, question, summary, topics, text)
+        return json.dumps(prep, indent=1)
+    out = respond(prep)
     refs = "\n".join(f"[{i}] {s['source']}: {s['title']} - {s['url']}"
-                     for i, s in enumerate(sources, 1))
+                     for i, s in enumerate(prep["sources"], 1))
     mems = "\n".join(f"[m{i}] {m['learnedAt'][:10]}, {m['source']}, confidence {m['confidence']:.2f}"
-                     f" ({m['id']})" for i, m in enumerate(past, 1))
-    return (f"{text}\n\nSources:\n{refs}"
+                     f" ({m['id']})" for i, m in enumerate(prep["past"], 1))
+    return (f"{out['text']}\n\nSources:\n{refs}"
             + (f"\n\nRemembered from past check-ins (Meterless H-MEM):\n{mems}" if mems else "")
-            + f"\n\nSaved this check-in to memory as {saved['id']}.\n\n{safety.DISCLAIMER}")
+            + f"\n\nSaved this check-in to memory as {out['saved']['id']}.\n\n{out['disclaimer']}")
+
+
+def note(user_id, text):
+    return memory.remember(user_id, f"User reported: {text}", source="user_report",
+                           tags=topics_for(text), confidence=0.7, origin="user_correction")
 
 
 def main():
@@ -211,8 +235,7 @@ def main():
     p.add_argument("--as-of", help="check in as of this date (YYYY-MM-DD), for demos on the log")
     a = p.parse_args()
     if a.note:
-        m = memory.remember(a.user, f"User reported: {a.note}", source="user_report",
-                            tags=topics_for(a.note), confidence=0.7, origin="user_correction")
+        m = note(a.user, a.note)
         print(f"Saved to memory as {m['id']}.")
     elif a.question:
         print(answer(a.question, a.user, a.dry_run, a.as_of))
