@@ -2,3 +2,4 @@ data/raw/
 data/checkin.sqlite
 __pycache__/
 .env*
+data/memory/

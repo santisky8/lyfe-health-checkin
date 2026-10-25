@@ -18,9 +18,15 @@ doctor and what to tell them. Danger signs skip the advice and show emergency he
    plus passages from each source, queried through the Zetaris Lightning REST API. The five
    sources are registered as Lightning filestore tables in database `LYFE_HEALTH_CHECKIN`
    (`zetaris/load.sql`). A local SQLite copy is the offline fallback.
-4. **Local model** through an OpenAI-compatible endpoint (Meterless), so health data stays on
-   the user's machine.
-5. **Cited answer**: user numbers cited as `[log]`, sources as `[n]`, plus a disclaimer.
+4. **Memory with provenance through Meterless H-MEM** (`agent/memory.py`, `meterless/`):
+   before answering, the agent recalls the user's past check-ins and reported outcomes; after
+   answering, it saves this check-in (the numbers, the suggestion, the Zetaris rows it came
+   from) with a source and confidence. Every change goes to an append-only trust ledger, so
+   the agent can say why it remembers something and follow up on last week's suggestion.
+5. **Local model** through any OpenAI-compatible endpoint (Ollama in development; Meterless
+   Nightshift where available), so health data stays on the user's machine.
+6. **Cited answer**: user numbers cited as `[log]`, sources as `[n]`, past check-ins as `[m]`,
+   plus a disclaimer.
 
 ## Sources
 
@@ -47,10 +53,13 @@ LLM_BASE_URL=http://<meterless-host>:8088/v1 LLM_API_KEY=<key> LLM_MODEL=<model>
 ```
 
 `--user <id>` picks one of the 30 Fitbit users (default `1503960366`).
+`--note "Went to bed earlier, less tired"` saves what the user tried and how it went.
+Memory needs Node 22.7+ (it runs the TypeScript engine with `--experimental-transform-types`).
 
 ## Pre-existing work (declared)
 
 - Open-source and public data listed above.
+- `meterless/hmem/`: Meterless H-MEM reference engine, Apache-2.0, copied unchanged.
 - The safety stance (no diagnosis, basics first, safe amounts only, "see a doctor if" with
   what to tell them) follows the editorial rules of the author's Lyfe Health project. No
   Lyfe Health code is in this repo.
