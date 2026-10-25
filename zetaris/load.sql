@@ -49,3 +49,13 @@ OPTIONS (
   escape "\"",
   quote "\""
 );
+
+CREATE LIGHTNING FILESTORE TABLE medlineplus_topics FROM LYFE_HEALTH_CHECKIN
+FORMAT csv
+OPTIONS (
+  path "file:///home/zetaris/customer-data/shared/lyfe_health_checkin/medlineplus_topics",
+  header "true",
+  multiLine "true",
+  escape "\"",
+  quote "\""
+);

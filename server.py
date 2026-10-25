@@ -101,8 +101,7 @@ class Handler(BaseHTTPRequestHandler):
 
         text = ""
         try:
-            for piece in checkin.stream_model(prep["question"], prep["summary"], prep["sources"],
-                                              prep["past"]):
+            for piece in checkin.stream_model(prep):
                 text += piece
                 emit({"delta": piece})
             emit({"done": checkin.finish(prep, text)})

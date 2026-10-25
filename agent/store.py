@@ -8,6 +8,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+import config  # noqa: F401  (loads .env.local)
+
 CLEAN = Path(__file__).resolve().parent.parent / "data" / "clean"
 DB = CLEAN.parent / "checkin.sqlite"
 ZETARIS_DB = "LYFE_HEALTH_CHECKIN"
@@ -57,8 +59,10 @@ def _zetaris(sql, retry=True):
     headers = {"Authorization": f"Bearer {_session['token']}", "X-Org-ID": _session["org"],
                "X-Request-ID": str(uuid.uuid4())}
     try:
-        return _post("/api/proxy/query/sql/start", {"select": sql, "pageLimit": 200},
+        rows = _post("/api/proxy/query/sql/start", {"select": sql, "pageLimit": 200},
                      headers)["records"]
+        # Empty CSV cells come back as null; the SQLite path returns "", so match it.
+        return [{k: ("" if v is None else v) for k, v in r.items()} for r in rows]
     except urllib.error.HTTPError as e:
         if e.code == 401 and retry:  # token expired
             _session.clear()

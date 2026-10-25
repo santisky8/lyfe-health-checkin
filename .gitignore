@@ -3,3 +3,4 @@ data/checkin.sqlite
 __pycache__/
 .env*
 data/memory/
+data/clean/library_index.json

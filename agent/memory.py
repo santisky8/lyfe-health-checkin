@@ -35,6 +35,22 @@ def recall(user_id, query, top_n=5, threshold=0.1):
                   "threshold": threshold})["memories"]
 
 
+def relevant(user_id, question, top_n=3, min_similarity=0.6):
+    """H-MEM recall, re-ranked by meaning with the local embedding model. H-MEM's own scoring is
+    word-based, so on its own a sleep check-in can surface for a question about feet."""
+    import library  # local import: library pulls in the data layer
+    found = recall(user_id, question, top_n=8, threshold=0)
+    if not found:
+        return []
+    vectors = library.embed([f"search_query: {question}"] +
+                            [f"search_document: {m['content']}" for m in found])
+    q, rest = library._unit(vectors[0]), [library._unit(v) for v in vectors[1:]]
+    for m, v in zip(found, rest):
+        m["similarity"] = round(sum(a * b for a, b in zip(q, v)), 3)
+    found = [m for m in found if m["similarity"] >= min_similarity]
+    return sorted(found, key=lambda m: -m["similarity"])[:top_n]
+
+
 def feedback(user_id, memory_id, kind):
     return _call({"op": "feedback", "user": user_id, "id": memory_id, "kind": kind})
 

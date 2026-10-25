@@ -11,39 +11,19 @@ Usage:
 """
 import argparse
 import json
-import os
 import re
 import sys
-import urllib.parse
-import urllib.request
+import time
 
+import hypotheses
+import library
+import llm
 import memory
+import research
 import safety
 import store
 
 
-def load_env():
-    """Read .env.local (gitignored). Accepts KEY=value lines or a Meterless Quick Connect link
-    (http://<host>:<port>/connect#k=<key>&m=<model>)."""
-    path = os.path.join(os.path.dirname(__file__), "..", ".env.local")
-    if not os.path.exists(path):
-        return
-    for line in open(path, encoding="utf-8"):
-        line = line.strip()
-        if "/connect#" in line:
-            base, frag = line.split("/connect#", 1)
-            params = dict(p.split("=", 1) for p in frag.split("&") if "=" in p)
-            os.environ.setdefault("LLM_BASE_URL", base.rstrip("/") + "/v1")
-            if "k" in params:
-                os.environ.setdefault("LLM_API_KEY", params["k"])
-            if "m" in params:
-                os.environ.setdefault("LLM_MODEL", urllib.parse.unquote(params["m"]))
-        elif "=" in line and not line.startswith("#"):
-            key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip())
-
-
-load_env()
 
 # Question words -> topics used by the loaders.
 ROUTES = {
@@ -56,28 +36,48 @@ ROUTES = {
     "back": ["back pain", "physical activity"], "alcohol": ["alcohol"], "drink": ["alcohol", "hydration"],
 }
 
-SYSTEM = """You are a warm, honest health check-in coach. You never diagnose, never treat, and
-never replace a doctor. Answer the user's "why" question using ONLY the evidence given.
+SYSTEM = """You are Check-In, a warm, honest health guide. You never diagnose, never treat, and
+never replace a doctor: you explain what something could be and what the person can do.
+Use ONLY the evidence given.
 
-Rules:
-- Start with the most likely everyday causes that the user's OWN numbers show, with the numbers.
-- The "checks" field already says whether each number meets its guideline. Never contradict it.
-- Cite the user's own numbers as [log]. Cite every guideline or study claim with its [n]
-  number, and only with a source whose text says it.
-- If a claim has no source in the evidence, do not make it.
-- Give ONE specific thing to try this week (amount, timing, how long).
-- Safe, basic amounts only. Never suggest high doses of any supplement.
-- If past check-ins are given, say what changed since then (better, worse, same) and whether
-  the last suggestion was tried. Cite them as [m1], [m2]...
-- End with "See a doctor if": when to go, and what to tell them (what they tried, for how
-  long, what changed).
-- Plain words, short sentences, under 220 words."""
+Write it like this, with each bold heading exactly as shown:
+One or two sentences on what they describe. If their own numbers are given and relevant,
+start from them and cite [log]; the "checks" field says whether each meets its guideline,
+never contradict it.
+**Possible causes**
+2 to 4 causes, most likely first, taken from the candidates or the evidence. For each, what
+usually fits it (where, when, what it feels like) and how to tell it apart from the others.
+Say "could be", never "you have". If the description is too vague to tell them apart, end
+this part with one question that would help.
+**What you can do now**
+Specific, safe steps for the everyday causes: how, how often, for how long. Basic safe
+amounts only; never high doses of any supplement. Never recommend a medicine, injection or
+procedure; at most say it is something a doctor may discuss.
+**What the research says**
+One to three short facts from the PubMed reviews or the library, each cited. Treatments
+that need a doctor are named only as options to ask a doctor about.
+**See a doctor if**
+Warning signs and timing, then what to tell the doctor: what they tried, for how long, what
+changed.
+
+Rules: cite every claim with [n] for a source, [log] for their numbers, [m1], [m2] for past
+check-ins. If past check-ins are given, say what changed since then. No claim without a
+source. Plain words, short sentences, under 300 words."""
+
+PERSONAL = ("sleep", "tired", "energy", "exhaust", "insomnia", "fatigue", "walk", "exercise",
+            "active", "steps", "weight")
+MIN_MATCH = 0.68  # below this a library topic is more likely noise than help
 
 
 def topics_for(question):
     q = question.lower()
     found = [t for key, ts in ROUTES.items() if key in q for t in ts]
-    return list(dict.fromkeys(found)) or ["fatigue", "sleep", "physical activity"]
+    return list(dict.fromkeys(found))
+
+
+def is_personal(question):
+    """Does the question touch what the user's log measures (sleep, activity, weight)?"""
+    return any(word in question.lower() for word in PERSONAL)
 
 
 def user_summary(user_id, days=7, as_of=None):
@@ -132,101 +132,110 @@ def sources_for(topics, per_table=2):
     return unique[:10]
 
 
-def _model_request(question, summary, sources, past, stream):
-    base = os.environ.get("LLM_BASE_URL", "http://localhost:8088/v1")
+def messages(prep):
     evidence = "\n\n".join(f"[{i}] {s['source']}: {s['title']}\n{s['text']}"
-                           for i, s in enumerate(sources, 1))
+                           for i, s in enumerate(prep["sources"], 1))
     history = "\n".join(f"[m{i}] {m['learnedAt'][:10]} ({m['source']}): {m['content']}"
-                        for i, m in enumerate(past, 1)) or "None yet."
-    user = (f"Question: {question}\n\nUser's own data (last {summary['days']} days):\n"
-            f"{json.dumps(summary, indent=1)}\n\nPast check-ins:\n{history}\n\n"
-            f"Evidence:\n{evidence}")
-    model = os.environ.get("LLM_MODEL", "default")
-    if model.startswith("qwen3"):
-        user += "\n/no_think"  # skip qwen3's long hidden reasoning on slow local hardware
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-        "temperature": 0.2,
-        "stream": stream,
-    }).encode()
-    req = urllib.request.Request(f"{base}/chat/completions", data=body, headers={
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {os.environ.get('LLM_API_KEY', 'rt-local')}",
-    })
-    return urllib.request.urlopen(req, timeout=int(os.environ.get("LLM_TIMEOUT", "600")))
+                        for i, m in enumerate(prep["past"], 1)) or "None yet."
+    summary = prep["summary"]
+    numbers = (f"User's own data (last {summary['days']} days):\n{json.dumps(summary, indent=1)}"
+               if summary else "User's own data: not relevant to this question.")
+    user = (f"Question: {prep['question']}\n\nCandidate causes to weigh: "
+            f"{', '.join(prep['hypotheses']) or 'none'}\n\n{numbers}\n\n"
+            f"Past check-ins:\n{history}\n\nEvidence:\n{evidence}")
+    return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
 
 
-def _clean(text):
-    return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.S).strip()
+def ask_model(prep):
+    return llm.chat(messages(prep))
 
 
-def ask_model(question, summary, sources, past):
-    with _model_request(question, summary, sources, past, stream=False) as r:
-        return _clean(json.load(r)["choices"][0]["message"]["content"])
-
-
-def stream_model(question, summary, sources, past):
-    """Yield the answer in pieces as the model writes it (OpenAI-style server-sent events)."""
-    with _model_request(question, summary, sources, past, stream=True) as r:
-        for raw in r:
-            line = raw.decode("utf-8").strip()
-            if not line.startswith("data:") or line == "data: [DONE]":
-                continue
-            delta = json.loads(line[5:])["choices"][0].get("delta", {}).get("content")
-            if delta:
-                yield delta
+def stream_model(prep):
+    """Yield the answer in pieces as the model writes it."""
+    return llm.chat(messages(prep), stream=True)
 
 
 def suggestion_in(text):
-    """The "try this week" line from the model's answer, kept so the next check-in can follow up."""
-    for line in text.splitlines():
-        if "try" in line.lower()[:30]:
-            return line.strip(" *-#").replace("**", "")[:300]
-    return ""
+    """The first step under "What you can do now", kept so the next check-in can follow up."""
+    part = re.split(r"\*\*What you can do now\*\*:?", text, flags=re.I)
+    if len(part) < 2:
+        return ""
+    body = re.split(r"\*\*", part[1])[0]
+    first = next((ln.strip(" *-•\t") for ln in body.splitlines() if ln.strip(" *-•\t")), "")
+    return re.sub(r"\[(\d+|log|m\d+)\]", "", first)[:300].strip()
 
 
-def remember_checkin(user_id, question, summary, topics, text):
-    facts = (f"avg sleep {summary['avg_sleep_hours']} h, {summary['nights_under_7h']} of "
-             f"{summary['nights_logged']} nights under 7 h, avg {summary['avg_steps']} steps, "
-             f"{summary['moderate_or_vigorous_minutes_per_week']} active min/week "
-             f"(log {summary['from']} to {summary['to']})")
+def remember_checkin(prep, text):
+    summary, parts, refs = prep["summary"], [f"asked \"{prep['question']}\""], []
+    if prep["hypotheses"]:
+        parts.append("considered " + ", ".join(prep["hypotheses"]))
+    if summary:
+        parts.append(f"data: avg sleep {summary['avg_sleep_hours']} h, "
+                     f"{summary['nights_under_7h']} of {summary['nights_logged']} nights under 7 h, "
+                     f"avg {summary['avg_steps']} steps, "
+                     f"{summary['moderate_or_vigorous_minutes_per_week']} active min/week "
+                     f"(log {summary['from']} to {summary['to']})")
+        refs.append(f"{store.table('user_log')}:{summary['from']}..{summary['to']}")
     tip = suggestion_in(text)
-    content = f"Check-in: asked \"{question}\". Data: {facts}." + (f" Suggested: {tip}" if tip else "")
-    return memory.remember(user_id, content, source="checkin", tags=topics, confidence=0.9,
-                           refs=[f"{store.table('user_log')}:{summary['from']}..{summary['to']}"])
+    if tip:
+        parts.append(f"suggested: {tip}")
+    refs += [s["url"] for s in prep["sources"][:5]]
+    return memory.remember(prep["user"], "Check-in: " + "; ".join(parts) + ".", source="checkin",
+                           tags=prep["topics"], confidence=0.9, refs=refs)
 
 
 def prepare(question, user_id, as_of=None):
-    """Everything the answer is built from, gathered before the model runs: the safety check,
-    the user's numbers and source passages from Zetaris, and past check-ins from H-MEM."""
+    """Everything the answer is built from, gathered before it is written: the safety check,
+    candidate causes, library topics and the user's numbers through Zetaris, live PubMed
+    reviews, and past check-ins from H-MEM."""
     store.executed.clear()
     urgent = safety.check(question)
     if urgent:
         memory.remember(user_id, f"Danger sign reported: \"{question}\". Sent to emergency help.",
                         source="safety_filter", tags=["danger"], confidence=1.0)
         return {"question": question, "user": user_id, "urgent": urgent}
-    summary = user_summary(user_id, as_of=as_of)
-    if summary is None:
-        return {"question": question, "user": user_id, "error": f"No log found for user {user_id}."}
+    timings = {}
+    t0 = time.time()
+    hyps = hypotheses.candidates(question)
+    timings["hypotheses"] = round(time.time() - t0, 1)
     topics = topics_for(question)
+    summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
+    t0 = time.time()
+    found = [r for r in library.search(f"{question}. Possibly: {', '.join(hyps)}")
+             if r["match"] >= MIN_MATCH][:3]
+    library_rows = [{"title": r["title"], "text": r["text"], "url": r["url"],
+                     "source": r["source"], "kind": "library", "match": r["match"]} for r in found]
+    guide_rows = [dict(s, kind="guide") for s in sources_for(topics, per_table=1)] if topics else []
+    timings["zetaris"] = round(time.time() - t0, 1)
+    t0 = time.time()
+    try:
+        papers, seen = [], set()
+        for h in hyps[:3]:  # one review per candidate, so each cause has its own evidence
+            for p in research.reviews([h], top_n=2):
+                if p["url"] not in seen:
+                    seen.add(p["url"])
+                    papers.append(dict(p, kind="research", about=h))
+                    break
+    except Exception:  # PubMed down or slow: answer from the library alone
+        papers = []
+    timings["pubmed"] = round(time.time() - t0, 1)
+    past = memory.relevant(user_id, question)
     return {
         "question": question, "user": user_id, "urgent": None, "summary": summary,
-        "topics": topics, "sources": sources_for(topics),
-        "past": memory.recall(user_id, f"{question} {' '.join(topics)}", top_n=3),
-        "sql": list(store.executed), "backend": store.backend(),
+        "hypotheses": hyps, "topics": topics or [h.lower() for h in hyps[:2]],
+        "sources": library_rows + guide_rows[:2] + papers, "past": past,
+        "sql": list(store.executed), "backend": store.backend(), "timings": timings,
     }
 
 
 def respond(prep):
     """Model answer for a prepared check-in, then save the check-in to memory."""
-    text = ask_model(prep["question"], prep["summary"], prep["sources"], prep["past"])
-    return finish(prep, text)
+    return finish(prep, ask_model(prep))
 
 
 def finish(prep, text):
-    text = _clean(text)
-    saved = remember_checkin(prep["user"], prep["question"], prep["summary"], prep["topics"], text)
+    text = llm.clean(text)
+    saved = remember_checkin(prep, text)
     return {"text": text, "saved": saved, "disclaimer": safety.DISCLAIMER}
 
 

@@ -21,6 +21,11 @@ DANGER = [
     r"suicid|kill myself|end my life|self[- ]harm|hurt myself",
     r"overdose|took too many",
     r"severe allergic|throat (swelling|closing)|anaphyla",
+    r"sudden(ly)? (numb|weak|can'?t move|lost (my )?(vision|sight))",
+    r"(stiff neck|rash).{0,40}fever|fever.{0,40}(stiff neck|rash)",
+    r"severe (stomach|abdominal|belly) pain",
+    r"(red|hot|swollen).{0,30}(spreading|streak)",
+    r"(sudden|can'?t) (see|speak)|lost (my )?(vision|speech)",
 ]
 _DANGER = re.compile("|".join(DANGER), re.IGNORECASE)
 

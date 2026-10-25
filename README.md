@@ -1,32 +1,41 @@
 # Lyfe Health Check-In
 
-A health check-in agent that answers "why" questions ("Why am I tired every afternoon?")
-by joining the user's own habit data with trusted public health sources, and shows the
-evidence behind every claim. Built for the Open Agent Hackathon 2026, Track 02: The Agent
-That Can Explain Why.
+A private health check-in agent. Describe what's going on in your own words ("the soles of
+my feet feel like stinging needles", "how do I get rid of milia?", "why am I tired every
+afternoon?") and it explains what it could be, what you can do, what the research says and
+when to see a doctor, with a source behind every claim. Built for the Open Agent Hackathon
+2026, Track 02: The Agent That Can Explain Why.
 
-It never diagnoses, never treats and never replaces a doctor. It points to everyday causes
-the user's own numbers show, suggests one safe change for the week, and says when to see a
-doctor and what to tell them. Danger signs skip the advice and show emergency help.
+It never diagnoses, never treats and never replaces a doctor: it weighs possible causes and
+says how to tell them apart. Medicines and procedures appear only as options to ask a doctor
+about. Danger signs skip the advice and show emergency help. Everything runs on the user's
+own computer.
 
 ## How it works
 
 1. **Danger-sign filter** (`agent/safety.py`): chest pain, stroke signs, trouble breathing,
-   self-harm and similar go straight to emergency help. No model call.
-2. **Topic routing**: the question picks topics (sleep, fatigue, activity, nutrition...).
-3. **SQL over federated sources through Zetaris** (`agent/store.py`): the user's last 14 days
-   plus passages from each source, queried through the Zetaris Lightning REST API. The five
-   sources are registered as Lightning filestore tables in database `LYFE_HEALTH_CHECKIN`
-   (`zetaris/load.sql`). A local SQLite copy is the offline fallback.
-4. **Memory with provenance through Meterless H-MEM** (`agent/memory.py`, `meterless/`):
-   before answering, the agent recalls the user's past check-ins and reported outcomes; after
-   answering, it saves this check-in (the numbers, the suggestion, the Zetaris rows it came
-   from) with a source and confidence. Every change goes to an append-only trust ledger, so
-   the agent can say why it remembers something and follow up on last week's suggestion.
-5. **Local model** through any OpenAI-compatible endpoint (Ollama in development; Meterless
-   Nightshift where available), so health data stays on the user's machine.
-6. **Cited answer**: user numbers cited as `[log]`, sources as `[n]`, past check-ins as `[m]`,
-   plus a disclaimer.
+   a spreading red swelling, rash with fever, self-harm and similar go straight to emergency
+   help. No model call.
+2. **Possible causes** (`agent/hypotheses.py`): a local model turns the person's words into up
+   to four standard condition names. They are search terms, not a diagnosis.
+3. **Health library and the user's log through Zetaris** (`agent/library.py`, `agent/store.py`):
+   1,016 MedlinePlus topics are matched by meaning with a local embedding model
+   (`nomic-embed-text`), then read through the Zetaris Lightning REST API, together with the
+   user's last 7 days of sleep and activity when the question is about them. All sources are
+   Lightning filestore tables in database `LYFE_HEALTH_CHECKIN` (`zetaris/load.sql`). A local
+   SQLite copy is the offline fallback.
+4. **Live research** (`agent/research.py`): PubMed is searched at question time for a recent
+   systematic review (or review) on each possible cause.
+5. **Memory with provenance through Meterless H-MEM** (`agent/memory.py`, `meterless/`):
+   before answering, past check-ins and reported outcomes are recalled with H-MEM and
+   re-ranked by meaning; after answering, the check-in (question, causes considered,
+   suggestion, source links, Zetaris rows) is saved with a source and confidence. Every
+   change goes to H-MEM's append-only trust ledger.
+6. **Local model** (`agent/llm.py`): Ollama in development (thinking switched off for speed),
+   or any OpenAI-compatible endpoint such as Meterless Nightshift, so health data stays on
+   the user's machine. The answer streams to the page as it is written.
+7. **Cited answer** in four parts: possible causes, what you can do now, what the research
+   says, see a doctor if. Sources are `[n]`, the user's numbers `[log]`, past check-ins `[m]`.
 
 ## Sources
 
@@ -35,6 +44,8 @@ doctor and what to tell them. Danger signs skip the advice and show emergency he
 | `user_log` | Fitbit data from 30 consenting people (Furberg et al., [Zenodo 53894](https://zenodo.org/records/53894)) | CC BY 4.0 | download |
 | `myhealthfinder` | [MyHealthfinder](https://odphp.health.gov/myhealthfinder), US ODPHP | public domain | API, no key |
 | `medlineplus` | [MedlinePlus](https://medlineplus.gov), US National Library of Medicine | public domain | API, no key |
+| `medlineplus_topics` | All 1,016 English MedlinePlus health topics | public domain | NLM search API, no key |
+| live | [PubMed](https://pubmed.ncbi.nlm.nih.gov) reviews per question | titles, short excerpts and links | E-utilities, no key |
 | `pubmed` | [PubMed](https://pubmed.ncbi.nlm.nih.gov) systematic reviews and meta-analyses | abstracts, cited | E-utilities, no key |
 | `nutrient_limits` | [NIH Office of Dietary Supplements](https://ods.od.nih.gov) fact sheets | public domain | typed from fact sheets |
 
@@ -44,6 +55,7 @@ Python 3.10+, standard library only.
 
 ```sh
 ./load_all.sh                                   # pull sources, build data/checkin.sqlite
+python3 agent/library.py build                  # embed the 1,016 library topics (needs Ollama)
 # Zetaris: copy data/clean/<table>/ into the driver's customer-data/shared/lyfe_health_checkin/ and run
 # zetaris/load.sql with lightning-sql.sh; then set ZETARIS_URL, ZETARIS_EMAIL and
 # ZETARIS_PASSWORD in .env.local (gitignored). Without ZETARIS_URL the agent uses SQLite.
