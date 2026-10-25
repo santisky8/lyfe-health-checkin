@@ -10,7 +10,7 @@ from pathlib import Path
 
 CLEAN = Path(__file__).resolve().parent.parent / "data" / "clean"
 DB = CLEAN.parent / "checkin.sqlite"
-ZETARIS_DB = "WHY_CHECKIN"
+ZETARIS_DB = "LYFE_HEALTH_CHECKIN"
 _session = {}
 
 

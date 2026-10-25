@@ -1,4 +1,4 @@
-# Handoff: Open Agent Hackathon 2026 (solo)
+# Handoff: Lyfe Health Check-In, Open Agent Hackathon 2026 (solo)
 
 Read this first in a new session.
 
@@ -32,7 +32,7 @@ github.com/Meterless/Meterless, engines/ folder (Apache-2.0, TypeScript, Node 24
 ## Zetaris (done 2026-10-25, ~3 PM Toronto)
 Running locally from ~/Downloads/zetaris/zetaris-platform (docker compose; Docker Desktop must be
 on). Registry login lives in ~/.docker-zetaris (DOCKER_CONFIG) because `pass` is not set up.
-Tables WHY_CHECKIN.{user_log,nutrient_limits,myhealthfinder,medlineplus,pubmed} registered
+Tables LYFE_HEALTH_CHECKIN.{user_log,nutrient_limits,myhealthfinder,medlineplus,pubmed} registered
 (zetaris/load.sql), counts match. Agent queries Zetaris when ZETARIS_URL is in .env.local.
 After the hackathon: `docker compose stop` (never `down -v`), then stop Docker Desktop.
 

@@ -1,4 +1,4 @@
-# Why Check-in
+# Lyfe Health Check-In
 
 A health check-in agent that answers "why" questions ("Why am I tired every afternoon?")
 by joining the user's own habit data with trusted public health sources, and shows the
@@ -16,7 +16,7 @@ doctor and what to tell them. Danger signs skip the advice and show emergency he
 2. **Topic routing**: the question picks topics (sleep, fatigue, activity, nutrition...).
 3. **SQL over federated sources through Zetaris** (`agent/store.py`): the user's last 14 days
    plus passages from each source, queried through the Zetaris Lightning REST API. The five
-   sources are registered as Lightning filestore tables in database `WHY_CHECKIN`
+   sources are registered as Lightning filestore tables in database `LYFE_HEALTH_CHECKIN`
    (`zetaris/load.sql`). A local SQLite copy is the offline fallback.
 4. **Local model** through an OpenAI-compatible endpoint (Meterless), so health data stays on
    the user's machine.
@@ -38,7 +38,7 @@ Python 3.10+, standard library only.
 
 ```sh
 ./load_all.sh                                   # pull sources, build data/checkin.sqlite
-# Zetaris: copy data/clean/<table>/ into the driver's customer-data/shared/why_checkin/ and run
+# Zetaris: copy data/clean/<table>/ into the driver's customer-data/shared/lyfe_health_checkin/ and run
 # zetaris/load.sql with lightning-sql.sh; then set ZETARIS_URL, ZETARIS_EMAIL and
 # ZETARIS_PASSWORD in .env.local (gitignored). Without ZETARIS_URL the agent uses SQLite.
 python3 agent/checkin.py --dry-run "Why am I tired every afternoon?"   # evidence only

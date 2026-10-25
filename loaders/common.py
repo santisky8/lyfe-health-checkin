@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CLEAN = ROOT / "data" / "clean"
 RAW = ROOT / "data" / "raw"
-UA = "why-checkin/0.1 (Open Agent Hackathon 2026)"
+UA = "lyfe-health-checkin/0.1 (Open Agent Hackathon 2026)"
 
 # Topics the check-in covers. Each loader pulls these from its own source.
 TOPICS = [
