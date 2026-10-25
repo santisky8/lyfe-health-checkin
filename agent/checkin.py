@@ -41,7 +41,17 @@ never replace a doctor: you explain what something could be and what the person 
 Use ONLY the evidence given.
 
 Write it like this, with each bold heading exactly as shown:
-One or two sentences on what they describe. If their own numbers are given and relevant,
+If the person asks about a remedy, supplement, product, dose or how long to use something,
+start with **Your question** and answer it directly first: what the evidence says, a safe
+amount and duration if the evidence gives one, who should avoid it, and interactions with
+the conditions or medicines they mention. Never guess what is in a branded product: if its
+ingredients are not in the evidence, say you can't confirm them and ask for the ingredient
+list on the label, then cover the general cautions that apply. Be calibrated: if something
+is a common food or a widely used remedy that is safe for most adults in normal amounts,
+say so plainly, then say who should be careful (for example babies, pregnancy, diabetes,
+reflux, blood thinners). Do not discourage safe self-care, and do not claim interactions
+the evidence does not show.
+Then one or two sentences on what they describe. If their own numbers are given and relevant,
 start from them and cite [log]; the "checks" field says whether each meets its guideline,
 never contradict it.
 **Possible causes**
@@ -54,18 +64,23 @@ Specific, safe steps for the everyday causes: how, how often, for how long. Basi
 amounts only; never high doses of any supplement. Never recommend a medicine, injection or
 procedure; at most say it is something a doctor may discuss.
 **What the research says**
-One to three short facts from the PubMed reviews or the library, each cited. Treatments
+One to three short facts from the PubMed reviews, NCCIH or the library, each cited. Treatments
 that need a doctor are named only as options to ask a doctor about.
 **See a doctor if**
 Warning signs and timing, then what to tell the doctor: what they tried, for how long, what
-changed.
+changed. Say how long it usually takes to settle when the evidence gives it.
 
-Rules: cite every claim with [n] for a source, [log] for their numbers, [m1], [m2] for past
+Rules: a source counts only if its text supports the claim; skip sources that are off-topic.
+If the question asks why something seemed to work, explain honestly and kindly what the
+evidence says, including placebo, natural ups and downs, and other changes made at the same
+time. Cite every claim with [n] for a source, [log] for their numbers, [m1], [m2] for past
 check-ins. If past check-ins are given, say what changed since then. No claim without a
 source. Plain words, short sentences, under 300 words."""
 
-PERSONAL = ("sleep", "tired", "energy", "exhaust", "insomnia", "fatigue", "walk", "exercise",
-            "active", "steps", "weight")
+# Words that make the user's log (sleep, activity, weight) relevant. Not "walk": "pain when
+# walking" is about the ankle, not the step count.
+PERSONAL = ("sleep", "tired", "energy", "exhaust", "insomnia", "fatigue", "how active",
+            "steps", "weight", "exercise enough")
 MIN_MATCH = 0.68  # below this a library topic is more likely noise than help
 
 
@@ -141,7 +156,12 @@ def messages(prep):
     numbers = (f"User's own data (last {summary['days']} days):\n{json.dumps(summary, indent=1)}"
                if summary else "User's own data: not relevant to this question.")
     user = (f"Question: {prep['question']}\n\nCandidate causes to weigh: "
-            f"{', '.join(prep['hypotheses']) or 'none'}\n\n{numbers}\n\n"
+            f"{', '.join(prep['hypotheses']) or 'none'}\nRemedies or products asked about: "
+            f"{', '.join(prep.get('remedies', [])) or 'none'}\n"
+            + (f"Branded products whose ingredients you do NOT know: {', '.join(prep['brands'])}. "
+               f"Do not say what they contain or what kind of product they are; ask for the "
+               f"ingredient list on the label.\n" if prep.get("brands") else "")
+            + f"\n{numbers}\n\n"
             f"Past check-ins:\n{history}\n\nEvidence:\n{evidence}")
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
 
@@ -184,6 +204,29 @@ def remember_checkin(prep, text):
                            tags=prep["topics"], confidence=0.9, refs=refs)
 
 
+REMEDY_SECTIONS = ("bottom line", "what have we learned", "safety", "how much do we know",
+                   "effectiveness", "what the science says")
+
+
+def remedy_facts(name, limit=3):
+    """NCCIH sections about a named herb, supplement or practice, read through Zetaris:
+    the bottom line, what the research shows and the safety notes."""
+    words = [w for w in re.findall(r"[a-z]+", name.lower()) if len(w) > 3
+             and w not in ("homeopathic", "remedy", "remedies", "supplement", "extract")]
+    if "homeopathic" in name.lower() or "homeopathy" in name.lower():
+        words = ["homeopathy"]
+    rows = []
+    for w in words[:2]:
+        rows = store.query(
+            f"SELECT title, section, substr(text, 1, 1400) AS text, url, source "
+            f"FROM {store.table('nccih')} WHERE lower(title) LIKE ?", (f"%{w}%",))
+        if rows:
+            break
+    keep = [r for r in rows if any(k in r["section"].lower() for k in REMEDY_SECTIONS)]
+    return [{"title": f"{r['title']}: {r['section']}", "text": r["text"], "url": r["url"],
+             "source": r["source"]} for r in keep[:limit]]
+
+
 def prepare(question, user_id, as_of=None):
     """Everything the answer is built from, gathered before it is written: the safety check,
     candidate causes, library topics and the user's numbers through Zetaris, live PubMed
@@ -196,7 +239,9 @@ def prepare(question, user_id, as_of=None):
         return {"question": question, "user": user_id, "urgent": urgent}
     timings = {}
     t0 = time.time()
-    hyps = hypotheses.candidates(question)
+    found_terms = hypotheses.analyse(question)
+    hyps, remedies = found_terms["conditions"], found_terms["remedies"]
+    brands = [] if "ingredients on the label" in question.lower() else found_terms.get("brands", [])
     timings["hypotheses"] = round(time.time() - t0, 1)
     topics = topics_for(question)
     summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
@@ -205,12 +250,25 @@ def prepare(question, user_id, as_of=None):
              if r["match"] >= MIN_MATCH][:3]
     library_rows = [{"title": r["title"], "text": r["text"], "url": r["url"],
                      "source": r["source"], "kind": "library", "match": r["match"]} for r in found]
-    guide_rows = [dict(s, kind="guide") for s in sources_for(topics, per_table=1)] if topics else []
+    guide_rows = ([dict(s, kind="guide") for s in sources_for(topics, per_table=1)]
+                  if topics and summary else [])
+    remedy_rows = []
+    for name in remedies:
+        remedy_rows += [dict(r, kind="remedy", about=name) for r in remedy_facts(name)]
     timings["zetaris"] = round(time.time() - t0, 1)
     t0 = time.time()
     try:
         papers, seen = [], set()
-        for h in hyps[:3]:  # one review per candidate, so each cause has its own evidence
+        for name in remedies[:2]:  # the remedy for this condition first, then on its own
+            for p in (research.reviews([name], top_n=2, context=hyps[0] if hyps else None)
+                      or research.reviews([name], top_n=2)):
+                if p["url"] not in seen:
+                    seen.add(p["url"])
+                    papers.append(dict(p, kind="research", about=name))
+                    break
+        # One review per candidate cause; when the question is about a remedy, the remedy
+        # evidence matters more, so only the most likely cause gets a paper of its own.
+        for h in hyps[:1] if remedies else hyps[:3]:
             for p in research.reviews([h], top_n=2):
                 if p["url"] not in seen:
                     seen.add(p["url"])
@@ -222,8 +280,9 @@ def prepare(question, user_id, as_of=None):
     past = memory.relevant(user_id, question)
     return {
         "question": question, "user": user_id, "urgent": None, "summary": summary,
-        "hypotheses": hyps, "topics": topics or [h.lower() for h in hyps[:2]],
-        "sources": library_rows + guide_rows[:2] + papers, "past": past,
+        "hypotheses": hyps, "remedies": remedies, "brands": brands,
+        "topics": topics or [h.lower() for h in hyps[:2]],
+        "sources": remedy_rows + library_rows + guide_rows[:2] + papers, "past": past,
         "sql": list(store.executed), "backend": store.backend(), "timings": timings,
     }
 

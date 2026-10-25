@@ -35,7 +35,7 @@ def recall(user_id, query, top_n=5, threshold=0.1):
                   "threshold": threshold})["memories"]
 
 
-def relevant(user_id, question, top_n=3, min_similarity=0.6):
+def relevant(user_id, question, top_n=3, min_similarity=0.66):
     """H-MEM recall, re-ranked by meaning with the local embedding model. H-MEM's own scoring is
     word-based, so on its own a sleep check-in can surface for a question about feet."""
     import library  # local import: library pulls in the data layer

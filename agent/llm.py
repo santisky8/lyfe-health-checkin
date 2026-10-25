@@ -9,6 +9,8 @@ import os
 import re
 import urllib.request
 
+import config  # noqa: F401  (loads .env.local)
+
 
 def _is_ollama(base):
     return ":11434" in base or os.environ.get("LLM_KIND") == "ollama"

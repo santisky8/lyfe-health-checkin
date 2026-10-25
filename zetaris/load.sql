@@ -59,3 +59,13 @@ OPTIONS (
   escape "\"",
   quote "\""
 );
+
+CREATE LIGHTNING FILESTORE TABLE nccih FROM LYFE_HEALTH_CHECKIN
+FORMAT csv
+OPTIONS (
+  path "file:///home/zetaris/customer-data/shared/lyfe_health_checkin/nccih",
+  header "true",
+  multiLine "true",
+  escape "\"",
+  quote "\""
+);

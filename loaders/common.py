@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CLEAN = ROOT / "data" / "clean"
 RAW = ROOT / "data" / "raw"
-UA = "lyfe-health-checkin/0.1 (Open Agent Hackathon 2026)"
+UA = "Mozilla/5.0 (X11; Linux x86_64) lyfe-health-checkin/0.1"
 
 # Topics the check-in covers. Each loader pulls these from its own source.
 TOPICS = [
@@ -39,7 +39,8 @@ def get_json(url, params=None):
 
 
 def strip_html(text):
-    text = re.sub(r"<[^>]+>", " ", html.unescape(text or ""))
+    text = re.sub(r"<(style|script)\b.*?</\1>", " ", text or "", flags=re.S | re.I)
+    text = re.sub(r"<[^>]+>", " ", html.unescape(text))
     return re.sub(r"\s+", " ", text).strip()
 
 

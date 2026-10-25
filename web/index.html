@@ -87,6 +87,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .block.doctor{background:var(--warn-soft)}.block.doctor h4{color:var(--warn)}
 .block.plain,.block.research{background:var(--code)}
 .block.causes{background:var(--calm-soft)}.block.causes h4{color:var(--calm)}
+.block.yours{background:var(--surface);border:2px solid var(--sun)}.block.yours h4{color:var(--sun-ink)}
+.label-box{margin-top:14px;background:var(--warn-soft);border-radius:14px;padding:14px 16px}
+.label-box p{margin:0 0 8px;font-weight:600}
+.label-box textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
+.label-box button{margin-top:8px;background:var(--sun);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:600;cursor:pointer}
 .block.research h4{color:var(--zet)}
 .kind{font:500 .62rem var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:4px}
 .block svg{flex:none}
@@ -297,6 +302,7 @@ async function refreshJournal() {
 const ICON = {
   try: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   doctor: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  yours: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/></svg>',
   causes: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
   research: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></svg>',
   plain: ""
@@ -314,7 +320,7 @@ function render(text) {
   let html = `<div class="lead">${paras(parts[0])}</div>`;
   for (let i = 1; i < parts.length; i += 2) {
     const title = parts[i].trim(), body = parts[i + 1] || "";
-    const kind = /cause/i.test(title) ? "causes" : /^(try|what you can do)/i.test(title) ? "try"
+    const kind = /your question/i.test(title) ? "yours" : /cause/i.test(title) ? "causes" : /^(try|what you can do)/i.test(title) ? "try"
       : /research/i.test(title) ? "research" : /doctor/i.test(title) ? "doctor" : "plain";
     html += `<div class="block ${kind}"><h4>${ICON[kind]}${esc(title)}</h4>${paras(body)}</div>`;
   }
@@ -355,8 +361,8 @@ async function checkIn() {
     const lib = prep.sources.filter(x => x.kind !== "research"), papers = prep.sources.filter(x => x.kind === "research");
     const base = [
       {state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
-      {state:"done", by:"Local model", title:`${prep.hypotheses.length} possible causes to check`, detail:`${esc(prep.hypotheses.join(" · ") || "none")} <br>${tm.hypotheses ?? "?"} s · search terms, not a diagnosis`},
-      {state:"done", by:"Zetaris", title:`${lib.length} library topic${lib.length === 1 ? "" : "s"}${s ? " + your log" : ""}`, detail:`${esc(lib.map(x => x.title).join(" · ") || "No close library match")}${s ? `<br>Your log for ${fmt(s.from)} to ${fmt(s.to)}` : ""}`,
+      {state:"done", by:"Local model", title:`${prep.hypotheses.length} possible causes to check`, detail:`${esc(prep.hypotheses.join(" · ") || "none")}${(prep.remedies || []).length ? `<br>Remedies asked about: ${esc(prep.remedies.join(" · "))}` : ""}<br>${tm.hypotheses ?? "?"} s · search terms, not a diagnosis`},
+      {state:"done", by:"Zetaris", title:`${lib.length} library section${lib.length === 1 ? "" : "s"}${s ? " + your log" : ""}`, detail:`${esc(lib.map(x => x.title).join(" · ") || "No close library match")}<br><span style="font-size:.8rem">MedlinePlus topics and NCCIH herb and supplement pages</span>${s ? `<br>Your log for ${fmt(s.from)} to ${fmt(s.to)}` : ""}`,
        more:`<details><summary>See the SQL</summary>${prep.sql.map(q => `<pre>${esc(q)}</pre>`).join("")}</details>`},
       {state:"done", by:"PubMed", title:`${papers.length} review${papers.length === 1 ? "" : "s"} found live`, detail: papers.map(p => esc(p.about || "") + ": " + esc(p.title.slice(0, 60)) + "…").join("<br>") || "No reviews found"},
       {state:"done", by:"Meterless H-MEM", title: prep.past.length ? `${prep.past.length} past check-in${prep.past.length > 1 ? "s" : ""} recalled` : "First check-in on this", detail: prep.past.length ? prep.past.map(m => esc(m.content.replace(/^Check-in: |^User reported: /, "").slice(0, 80)) + "…").join("<br>") : "Nothing to follow up on yet"},
@@ -387,7 +393,14 @@ async function checkIn() {
       {state:"done", by:"Local model", title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites a source, your log or a memory"},
       {state:"done", by:"Meterless H-MEM", title:`Saved as ${esc(done.saved.id)}`, detail:"Next week's check-in will follow up on this"}]);
     card.innerHTML = render(done.text) + foot +
+      ((prep.brands || []).length ? `<div class="label-box"><p>Check-In doesn't know what's in ${esc(prep.brands.join(" or "))}. Paste the ingredient list from the label and ask again.</p><textarea aria-label="Ingredient list" placeholder="For example: L-glutamine 5,000 mg, aloe vera 200 mg, slippery elm 100 mg, probiotics 10 billion CFU"></textarea><button>Ask again with these ingredients</button></div>` : "") +
       `<div class="note"><input placeholder="Later this week: what did you try, and how did it go?" aria-label="What you tried"><button>Save to journal</button></div><p class="legal">${esc(done.disclaimer)}</p>`;
+    const box = card.querySelector(".label-box");
+    if (box) box.querySelector("button").onclick = () => {
+      const ing = box.querySelector("textarea").value.trim(); if (!ing) return box.querySelector("textarea").focus();
+      $("#question").value = `${question}\n\nIngredients on the label of ${prep.brands.join(", ")}: ${ing}`;
+      checkIn();
+    };
     card.querySelector(".note button").onclick = async ev => {
       const inp = card.querySelector(".note input"); if (!inp.value.trim()) return inp.focus();
       await api("/api/note", {user, text: inp.value});

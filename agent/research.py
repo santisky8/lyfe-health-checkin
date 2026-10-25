@@ -19,16 +19,20 @@ def _get(path, params):
         return r.read().decode("utf-8")
 
 
-def reviews(terms, top_n=3):
-    """Recent systematic reviews and meta-analyses on any of the terms, most relevant first."""
+def reviews(terms, top_n=3, context=None):
+    """Recent systematic reviews and meta-analyses on any of the terms, most relevant first.
+    With `context` (a condition), only papers that also mention it in the title or abstract."""
     terms = [t for t in dict.fromkeys(terms) if t][:3]
     if not terms:
         return []
     topic = " OR ".join(f'"{t}"[ti]' for t in terms)
+    if context:
+        topic = f'({topic}) AND "{context}"[tiab]'
     # Strongest evidence first; widen only when a rare topic has no systematic review.
     ids = []
     for kind in ("(systematic review[pt] OR meta-analysis[pt])", "review[pt]", ""):
-        query = f"({topic}) {'AND ' + kind if kind else ''} AND english[la] AND 2005:3000[dp]"
+        query = (f"({topic}) {'AND ' + kind if kind else ''} AND humans[mh] AND english[la] "
+                 f"AND 2005:3000[dp] NOT retracted publication[pt] NOT withdrawn[ti]")
         ids = json.loads(_get("esearch.fcgi", {"db": "pubmed", "term": query, "retmax": top_n,
                                                "sort": "relevance", "retmode": "json"})
                          )["esearchresult"]["idlist"]
@@ -43,6 +47,9 @@ def reviews(terms, top_n=3):
     out = []
     for art in root.iter("PubmedArticle"):
         pmid = art.findtext(".//PMID")
+        title = "".join(art.find(".//ArticleTitle").itertext()).strip()
+        if title.upper().startswith(("WITHDRAWN", "RETRACTED")):
+            continue
         parts = []
         for a in art.iter("AbstractText"):
             label = a.get("Label")
@@ -52,7 +59,7 @@ def reviews(terms, top_n=3):
         if not parts:  # unstructured abstract: keep the end, where the findings usually are
             parts = ["".join(a.itertext()) for a in art.iter("AbstractText")][-1:]
         out.append({
-            "title": "".join(art.find(".//ArticleTitle").itertext()).strip(),
+            "title": title,
             "text": " ".join(parts)[:900],
             "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
             "source": f"PubMed: {art.findtext('.//Journal/ISOAbbreviation') or art.findtext('.//Journal/Title')}, "
