@@ -17,8 +17,20 @@ Tue 27 Oct 2026, 23:45 UTC = 7:45 PM Toronto. Hard. Submit by 4:45 PM Toronto (c
   (`LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen3:8b`).
 - Prompt now cites user numbers as [log]; not rerun since.
 
+## Meterless plan (2026-10-25, decided)
+Use the open Meterless ENGINES, not Nightshift. GenAI Academy page: "Build layer: implement a
+Meterless Engine for memory, long tasks, shared state or intent routing". Repo
+github.com/Meterless/Meterless, engines/ folder (Apache-2.0, TypeScript, Node 24 on this PC:
+~/.var/app/com.vscodium.codium/data/node/bin).
+- H-MEM reference: reviewed (1,147 lines, zero runtime deps, no network), 10/10 tests pass on Linux.
+  Plan: vendor into meterless/hmem, small Node CLI, Python calls it to store check-ins and
+  retrieve memories with source and confidence.
+- Scout Intent: spec + eval harness only (no src). Build a small Scout class for danger signs
+  and topic routing, verify with SCOUT_IMPL=... npm run evals.
+- Nightshift (Windows app, unsigned) is optional; only for the NVIDIA prize.
+
 ## Blockers
-1. Meterless (Nightshift) supports only Windows 10/11, Mac M5+, DGX Spark. Web edition and Mac
+1. (old note) Meterless (Nightshift) supports only Windows 10/11, Mac M5+, DGX Spark. Web edition and Mac
    M1-M4 have no local endpoint. Linux not listed. Endpoint when installed:
    `http://127.0.0.1:8088/v1`, bearer token from the runtime's token file. Asked organizers? -> pending.
 2. Zetaris: platform zip + .env from https://cloud.enterprise.zetaris.com/dashboard/download
