@@ -77,7 +77,9 @@ Rules: a source counts only if its text supports the claim; skip sources that ar
 If the question asks why something seemed to work, explain honestly and kindly what the
 evidence says, including placebo, natural ups and downs, and other changes made at the same
 time. Cite every claim with [n] for a source, [log] for their numbers, [m1], [m2] for past
-check-ins. If past check-ins are given, say what changed since then. Past check-ins only
+check-ins. Every cause, step and research fact needs at least one [n]: [log] and [m1] show
+what applies to this person, never why something is true. If past check-ins are given, say what
+changed since then. Past check-ins only
 say what was asked, tried and suggested before: never use them as evidence for a medical
 fact. No claim without a source. If there is no evidence for a point, say so instead of
 citing. Plain words, short sentences, under 300 words."""
@@ -87,6 +89,7 @@ citing. Plain words, short sentences, under 300 words."""
 PERSONAL = ("sleep", "tired", "energy", "exhaust", "insomnia", "fatigue", "how active",
             "steps", "weight", "exercise enough")
 MIN_MATCH = 0.68  # below this a library topic is more likely noise than help
+MIN_RELEVANCE = 0.5  # below this a source is off-topic for the question (see on_topic)
 
 
 def topics_for(question):
@@ -150,6 +153,27 @@ def sources_for(topics, per_table=2):
             seen.add(s["url"] + s["title"])
             unique.append(s)
     return unique[:10]
+
+
+def score_sources(question, sources):
+    """How close each source is to the question, by meaning (local embedding model)."""
+    if not sources:
+        return
+    vectors = library.embed([f"search_query: {question}"] +
+                            [f"search_document: {s['title']}. {s['text'][:600]}" for s in sources])
+    q = library._unit(vectors[0])
+    for s, v in zip(sources, vectors[1:]):
+        s["relevance"] = round(sum(a * b for a, b in zip(q, library._unit(v))), 3)
+
+
+def on_topic(question, sources, keep_at_least=2):
+    """Drop sources that are not about the question, such as a surgery case report for red dots
+    on the legs. Remedy pages stay: they were found by the remedy's own name. The best
+    `keep_at_least` stay too, so an answer is never left without a source to cite."""
+    score_sources(question, sources)
+    best = sorted(sources, key=lambda s: -s.get("relevance", 0))[:keep_at_least]
+    return [s for s in sources if s.get("kind") == "remedy" or s in best
+            or s.get("relevance", 0) >= MIN_RELEVANCE]
 
 
 def messages(prep):
@@ -332,7 +356,8 @@ def prepare(question, user_id, as_of=None, clarified=False):
         "question": question, "user": user_id, "urgent": None, "summary": summary,
         "hypotheses": hyps, "remedies": remedies, "brands": brands,
         "topics": topics or [h.lower() for h in hyps[:2]],
-        "sources": remedy_rows + library_rows + guide_rows[:2] + papers, "past": past,
+        "sources": on_topic(question, remedy_rows + library_rows + guide_rows[:2] + papers),
+        "past": past,
         "sql": list(store.executed), "backend": store.backend(), "timings": timings,
     }
 
@@ -391,10 +416,22 @@ def respond(prep):
     return finish(prep, ask_model(prep))
 
 
+def cited(text):
+    """Source numbers the answer cites, in order of first use."""
+    return list(dict.fromkeys(int(n) for n in re.findall(r"\[(\d+)\]", text)))
+
+
 def finish(prep, text):
     text = check_citations(llm.clean(text), len(prep["sources"]), len(prep["past"]))
+    if prep["sources"] and not cited(text):
+        # No trusted source cited at all: write it once more, told so plainly.
+        retry = messages(prep)
+        retry[-1]["content"] += ("\n\nYour last draft cited no source. Cite the evidence "
+                                 "with [n] for every cause, step and research fact.")
+        text = check_citations(llm.clean(llm.chat(retry)), len(prep["sources"]),
+                               len(prep["past"]))
     saved = remember_checkin(prep, text)
-    return {"text": text, "saved": saved, "disclaimer": safety.DISCLAIMER}
+    return {"text": text, "saved": saved, "cited": cited(text), "disclaimer": safety.DISCLAIMER}
 
 
 def answer(question, user_id, dry_run=False, as_of=None, clarified=False):
@@ -409,7 +446,7 @@ def answer(question, user_id, dry_run=False, as_of=None, clarified=False):
         return json.dumps(prep, indent=1)
     out = respond(prep)
     refs = "\n".join(f"[{i}] {s['source']}: {s['title']} - {s['url']}"
-                     for i, s in enumerate(prep["sources"], 1))
+                     for i, s in enumerate(prep["sources"], 1) if i in out["cited"])
     mems = "\n".join(f"[m{i}] {m['learnedAt'][:10]}, {m['source']}, confidence {m['confidence']:.2f}"
                      f" ({m['id']})" for i, m in enumerate(prep["past"], 1))
     return (f"{out['text']}\n\nSources:\n{refs}"

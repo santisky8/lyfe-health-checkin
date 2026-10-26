@@ -462,7 +462,8 @@ async function answer(card, prep, user) {
   const t0 = Date.now();
   steps([...base, {state:"run", by:"Nightshift", title:"Writing your answer", detail:'<span id="tick">0 s</span> · Meterless Nightshift, NVIDIA Nemotron'}]);
   const tick = setInterval(() => { const el = $("#tick"); if (el) el.textContent = Math.round((Date.now() - t0) / 1000) + " s"; }, 1000);
-  const foot = `<div class="foot"><strong>Sources</strong><ol>${prep.sources.map((x, i) => `<li data-n="${i + 1}"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a> <span class="from">· ${esc(x.source)}</span></li>`).join("")}</ol></div>`;
+  // Only the sources the answer actually cites, keeping their numbers.
+  const foot = cited => `<div class="foot"><strong>Sources</strong><ol>${prep.sources.map((x, i) => !cited || cited.includes(i + 1) ? `<li value="${i + 1}" data-n="${i + 1}"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a> <span class="from">· ${esc(x.source)}</span></li>` : "").join("")}</ol></div>`;
   card.innerHTML = `<p class="waiting">I'm weighing ${prep.hypotheses.length} possible causes against ${nSrc} sources${s ? ", your own numbers" : ""}${prep.past.length ? " and what you told me before" : ""}. Writing…</p>`;
 
   const r = await fetch("/api/stream", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({id: prep.id})});
@@ -484,7 +485,7 @@ async function answer(card, prep, user) {
   steps([...base,
     {state:"done", by:"Nightshift", title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites a source, your log or a memory"},
     {state:"done", by:"Meterless H-MEM", title:`Saved as ${esc(done.saved.id)}`, detail:"Next week's check-in will follow up on this"}]);
-  card.innerHTML = render(done.text) + foot +
+  card.innerHTML = render(done.text) + (done.cited?.length ? foot(done.cited) : "") +
     ((prep.brands || []).length ? `<div class="label-box"><p>Check-In doesn't know what's in ${esc(prep.brands.join(" or "))}. Paste the ingredient list from the label and ask again.</p><textarea aria-label="Ingredient list" placeholder="For example: L-glutamine 5,000 mg, aloe vera 200 mg, slippery elm 100 mg, probiotics 10 billion CFU"></textarea><button>Ask again with these ingredients</button></div>` : "") +
     `<div class="note"><input placeholder="Later this week: what did you try, and how did it go?" aria-label="What you tried"><button>Save to journal</button></div><p class="legal">${esc(done.disclaimer)}</p>`;
   const box = card.querySelector(".label-box");

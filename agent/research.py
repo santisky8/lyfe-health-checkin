@@ -34,7 +34,8 @@ def reviews(terms, top_n=3, context=None):
     ids = []
     for kind in ("(systematic review[pt] OR meta-analysis[pt])", "review[pt]", ""):
         query = (f"({topic}) {'AND ' + kind if kind else ''} AND humans[mh] AND english[la] "
-                 f"AND 2005:3000[dp] NOT retracted publication[pt] NOT withdrawn[ti]")
+                 f"AND 2005:3000[dp] NOT retracted publication[pt] NOT case reports[pt] "
+                 f"NOT withdrawn[ti]")
         ids = json.loads(_get("esearch.fcgi", {"db": "pubmed", "term": query, "retmax": top_n,
                                                "sort": "relevance", "retmode": "json"})
                          )["esearchresult"]["idlist"]
