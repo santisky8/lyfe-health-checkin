@@ -11,6 +11,7 @@ import csv
 import json
 import math
 import os
+import re
 import sys
 import urllib.request
 from pathlib import Path
@@ -23,14 +24,23 @@ TOPICS = ROOT / "data" / "clean" / "medlineplus_topics.csv"
 _index = None
 
 
+_cache = {}  # text -> vector; one check-in embeds its question for three steps
+
+
 def embed(texts):
-    base = os.environ.get("EMBED_URL", "http://localhost:11434")
-    body = json.dumps({"model": os.environ.get("EMBED_MODEL", "nomic-embed-text"),
-                       "input": texts}).encode()
-    req = urllib.request.Request(f"{base}/api/embed", data=body,
-                                 headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        return json.load(r)["embeddings"]
+    """Vectors for the texts from the local embedding model, reusing ones already made."""
+    missing = [t for t in dict.fromkeys(texts) if t not in _cache]
+    if missing:
+        base = os.environ.get("EMBED_URL", "http://localhost:11434")
+        body = json.dumps({"model": os.environ.get("EMBED_MODEL", "nomic-embed-text"),
+                           "input": missing}).encode()
+        req = urllib.request.Request(f"{base}/api/embed", data=body,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=300) as r:
+            if len(_cache) > 2000:
+                _cache.clear()
+            _cache.update(zip(missing, json.load(r)["embeddings"]))
+    return [_cache[t] for t in texts]
 
 
 def _unit(v):
@@ -67,7 +77,7 @@ def search(question, top_n=4):
     score = {_index["ids"][i]: s for s, i in scored}
     marks = ",".join("?" * len(ids))
     rows = store.query(
-        f"SELECT doc_id, title, also_called, substr(text, 1, 1500) AS text, url, source "
+        f"SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source "
         f"FROM {store.table('medlineplus_topics')} WHERE doc_id IN ({marks})", tuple(ids))
     rows.sort(key=lambda r: -score[r["doc_id"]])
     for r in rows:
@@ -77,7 +87,6 @@ def search(question, top_n=4):
 
 def _stem(phrase):
     """Rough word roots, so "bruising" meets "Bruises" and "trauma" does not meet "traumatic"."""
-    import re
     return " ".join(re.sub(r"(ing|es|s)$", "", w) for w in re.findall(r"[a-z0-9]+", phrase.lower()))
 
 
@@ -91,7 +100,7 @@ def by_name(names):
         if len(n) < 4:
             continue
         rows = store.query(
-            f"SELECT doc_id, title, also_called, substr(text, 1, 1500) AS text, url, source "
+            f"SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source "
             f"FROM {store.table('medlineplus_topics')} "
             f"WHERE lower(title) LIKE ? OR lower(also_called) LIKE ?", (f"%{n}%", f"%{n}%"))
 

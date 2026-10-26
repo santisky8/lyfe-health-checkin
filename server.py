@@ -2,9 +2,10 @@
 
   python3 server.py            # then open http://localhost:8765
 
-The page calls /api/prepare first (safety check, Zetaris SQL, H-MEM recall: a few seconds),
-shows that evidence, then calls /api/respond for the model's answer (can take minutes on a
-local CPU model).
+The page sends the whole conversation to /api/turn. It gets back a clarifying question, the
+emergency message, or the prepared evidence (Zetaris SQL, PubMed, H-MEM recall, and the agent's
+decisions), which it shows at once. It then calls /api/stream, which streams the model's answer
+and ends with the checked answer and the H-MEM memory it was saved as.
 
   PUBLIC=1 PORT=8766 python3 server.py   # public demo copy behind Tailscale Funnel (demo_on.sh)
 
@@ -28,22 +29,34 @@ import store  # noqa: E402
 
 PORT = int(os.environ.get("PORT", 8765))
 PUBLIC = os.environ.get("PUBLIC") == "1"
-_prepared = {}
+_prepared = {}  # evidence waiting for /api/stream, by id; oldest dropped past MAX_WAITING
+MAX_WAITING = 100
 _lock = threading.Lock()
+
+
+def person(value):
+    """A Fitbit user id from the request: digits only, since it goes into SQL and H-MEM."""
+    if not re.fullmatch(r"\d{1,20}", str(value)):
+        raise ValueError("unknown person")
+    return str(value)
+
+
+def day(value):
+    """An ISO date from the request, or None for the latest week."""
+    if value and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(value)):
+        raise ValueError("bad date")
+    return value or None
 
 
 def users():
     """People in the Fitbit data, with how many nights of sleep each one logged. Many wore the
     watch only in the day, so the people with the most sleep data come first."""
     found = store.query(
-        f"SELECT user_id, min(day) AS first_day, max(day) AS last_day, count(*) AS days "
+        f"SELECT user_id, min(day) AS first_day, max(day) AS last_day, count(*) AS days, "
+        f"sum(CASE WHEN CAST(minutes_asleep AS INT) > 0 THEN 1 ELSE 0 END) AS nights "
         f"FROM {store.table('user_log')} GROUP BY user_id ORDER BY user_id")
-    nights = {}
-    for r in store.query(f"SELECT user_id, minutes_asleep FROM {store.table('user_log')}"):
-        if str(r["minutes_asleep"]).strip() not in ("", "0"):
-            nights[r["user_id"]] = nights.get(r["user_id"], 0) + 1
     for u in found:
-        u["nights"] = nights.get(u["user_id"], 0)
+        u["nights"] = int(u["nights"] or 0)
     found.sort(key=lambda u: (u["user_id"] != "1503960366", -u["nights"]))  # demo person first
     for i, u in enumerate(found, 1):
         u["n"] = i
@@ -106,9 +119,9 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/users":
                 return self._send(200, users())
             if url.path == "/api/log":
-                return self._send(200, log(q["user"], q.get("as_of")))
+                return self._send(200, log(person(q["user"]), day(q.get("as_of"))))
             if url.path == "/api/memory":
-                return self._send(200, memory.all_memories(q["user"]))
+                return self._send(200, memory.all_memories(person(q["user"])))
             self._send(404, {"error": "not found"})
         except Exception as e:
             self._fail(e)
@@ -120,34 +133,24 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(413, {"error": "message too long"})
         try:
             body = json.loads(self.rfile.read(size) or b"{}")
-            if self.path == "/api/prepare":
-                prep = checkin.prepare(body["question"].strip()[:1500], body["user"],
-                                       body.get("as_of") or None, bool(body.get("clarified")))
-                if prep.get("clarify"):
-                    return self._send(200, prep)
-                prep["id"] = str(uuid.uuid4())
-                with _lock:
-                    _prepared[prep["id"]] = prep
-                return self._send(200, prep)
             if self.path == "/api/turn":
                 turns = [{"role": x["role"], "content": str(x["content"])[:4000],
                           "kind": x.get("kind")} for x in body["turns"][-16:]]
-                prep = checkin.turn(turns, body["user"], body.get("as_of") or None)
+                prep = checkin.turn(turns, person(body["user"]), day(body.get("as_of")))
                 if prep.get("urgent") is None and "sources" in prep:
                     prep["id"] = str(uuid.uuid4())
                     with _lock:
                         _prepared[prep["id"]] = prep
+                        while len(_prepared) > MAX_WAITING:  # check-ins nobody streamed
+                            _prepared.pop(next(iter(_prepared)))
                 return self._send(200, prep)
-            if self.path == "/api/respond":
-                with _lock:
-                    prep = _prepared.pop(body["id"])
-                return self._send(200, checkin.respond(prep))
             if self.path == "/api/stream":
                 with _lock:
                     prep = _prepared.pop(body["id"])
                 return self._stream(prep)
             if self.path == "/api/note":
-                return self._send(200, checkin.note(body["user"], body["text"].strip()[:500]))
+                return self._send(200, checkin.note(person(body["user"]),
+                                                    body["text"].strip()[:500]))
             self._send(404, {"error": "not found"})
         except Exception as e:
             self._fail(e)

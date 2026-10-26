@@ -1,8 +1,11 @@
 """Health check-in agent: answers "why" questions from the user's own log plus trusted sources.
 
-Flow: danger-sign filter -> pick topics -> SQL through Zetaris for the user's numbers and source
-passages -> past check-ins from Meterless H-MEM memory -> model -> cited answer -> the check-in
-is saved back to memory with its source and confidence.
+Flow: danger-sign filter -> clarifying question if the safe answer depends on a missing detail
+-> candidate causes (fast model) -> the user's numbers and library pages through Zetaris SQL,
+plus live PubMed reviews -> off-topic sources dropped by meaning -> past check-ins from
+Meterless H-MEM -> cited answer from the model -> citations checked -> the check-in is saved
+back to H-MEM with its sources and confidence. Every choice along the way goes into
+prep["decisions"], shown in the app under "Show your work" and saved as a trace file.
 
 Usage:
   python3 agent/checkin.py --user 1503960366 "Why am I tired every afternoon?"
@@ -23,8 +26,6 @@ import memory
 import research
 import safety
 import store
-
-
 
 # Question words -> topics used by the loaders.
 ROUTES = {
@@ -91,6 +92,8 @@ PERSONAL = ("sleep", "tired", "energy", "exhaust", "insomnia", "fatigue", "how a
 MIN_MATCH = 0.68  # below this a library topic is more likely noise than help
 MIN_RELEVANCE = 0.5  # below this a source is off-topic for the question (see on_topic)
 RELEVANCE_GAP = 0.12  # and this far behind the best source, it is likely off-topic too
+MAX_SOURCES = 8  # evidence sent to the model; more adds tokens, not better answers
+TRACES = store.CLEAN.parent / "traces"  # one JSON decision trace per check-in (gitignored)
 
 
 def topics_for(question):
@@ -167,7 +170,7 @@ def score_sources(question, sources):
         s["relevance"] = round(sum(a * b for a, b in zip(q, library._unit(v))), 3)
 
 
-def on_topic(question, sources):
+def on_topic(question, sources, decisions):
     """Drop sources that are not about the question, such as a surgery case report for red dots
     on the legs. A source stays when it is close to the question and not far behind the best
     match. Remedy pages stay: they were found by the remedy's own name. The best source always
@@ -177,8 +180,17 @@ def on_topic(question, sources):
         return sources
     best = max(sources, key=lambda s: s["relevance"])
     floor = max(MIN_RELEVANCE, best["relevance"] - RELEVANCE_GAP)
-    return [s for s in sources if s.get("kind") == "remedy" or s is best
+    keep = [s for s in sources if s.get("kind") == "remedy" or s is best
             or s["relevance"] >= floor]
+    if len(keep) > MAX_SOURCES:  # least relevant go first; remedy pages are never cut
+        cut = sorted((s for s in keep if s.get("kind") != "remedy"),
+                     key=lambda s: s["relevance"])[:len(keep) - MAX_SOURCES]
+        keep = [s for s in keep if s not in cut]
+    for s in sources:
+        if s not in keep:
+            decisions.append(f"Dropped as off-topic: {s['title'][:80]} "
+                             f"(match {s['relevance']:.2f}, needed {floor:.2f})")
+    return keep
 
 
 def messages(prep):
@@ -187,7 +199,7 @@ def messages(prep):
     history = "\n".join(f"[m{i}] {m['learnedAt'][:10]} ({m['source']}): {m['content']}"
                         for i, m in enumerate(prep["past"], 1)) or "None yet."
     summary = prep["summary"]
-    numbers = (f"User's own data (last {summary['days']} days):\n{json.dumps(summary, indent=1)}"
+    numbers = (f"User's own data (last {summary['days']} days):\n{json.dumps(summary)}"
                if summary else "User's own data: not relevant to this question.")
     convo = prep.get("conversation") or []
     follow = ("This is a follow-up in an ongoing conversation:\n"
@@ -197,7 +209,8 @@ def messages(prep):
               "matter for this follow-up, but keep **See a doctor if** whenever there is any "
               "risk. Under 220 words.\n\n"
               if any(t.get("kind") == "answer" for t in convo) else "")
-    user = (follow + f"Question: {prep['question']}\n\nCandidate causes to weigh: "
+    asked = convo[-1]["content"] if follow else prep["question"]  # the transcript has the rest
+    user = (follow + f"Question: {asked}\n\nCandidate causes to weigh: "
             f"{', '.join(prep['hypotheses']) or 'none'}\nRemedies or products asked about: "
             f"{', '.join(prep.get('remedies', [])) or 'none'}\n"
             + (f"Branded products whose ingredients you do NOT know: {', '.join(prep['brands'])}. "
@@ -227,7 +240,7 @@ def suggestion_in(text):
     return re.sub(r"\[(\d+|log|m\d+)\]", "", first)[:300].strip()
 
 
-def remember_checkin(prep, text):
+def remember_checkin(prep, text, cited_numbers):
     summary, parts, refs = prep["summary"], [f"asked \"{prep['question']}\""], []
     if prep["hypotheses"]:
         parts.append("considered " + ", ".join(prep["hypotheses"]))
@@ -241,7 +254,7 @@ def remember_checkin(prep, text):
     tip = suggestion_in(text)
     if tip:
         parts.append(f"suggested: {tip}")
-    refs += [s["url"] for s in prep["sources"][:5]]
+    refs += [prep["sources"][n - 1]["url"] for n in cited_numbers[:5]]
     return memory.remember(prep["user"], "Check-in: " + "; ".join(parts) + ".", source="checkin",
                            tags=prep["topics"], confidence=0.9, refs=refs)
 
@@ -269,16 +282,17 @@ def remedy_facts(name, limit=3):
              "source": r["source"]} for r in keep[:limit]]
 
 
-def prepare(question, user_id, as_of=None, clarified=False):
+def prepare(question, user_id, as_of=None, clarified=False, said=None):
     """Everything the answer is built from, gathered before it is written: the safety check,
     candidate causes, library topics and the user's numbers through Zetaris, live PubMed
-    reviews, and past check-ins from H-MEM."""
-    store.executed.clear()
-    urgent = safety.check(question)
-    if urgent:
-        memory.remember(user_id, f"Danger sign reported: \"{question}\". Sent to emergency help.",
-                        source="safety_filter", tags=["danger"], confidence=1.0)
-        return {"question": question, "user": user_id, "urgent": urgent}
+    reviews, and past check-ins from H-MEM. `said` is what the person wrote themselves, when
+    `question` is a whole conversation folded into one (turn() has already screened it)."""
+    sql = store.start_log()
+    decisions = []
+    if said is None:
+        urgent = danger(question, user_id)
+        if urgent:
+            return {"question": question, "user": user_id, "urgent": urgent}
     timings = {}
     t0 = time.time()
     if not clarified:
@@ -292,13 +306,19 @@ def prepare(question, user_id, as_of=None, clarified=False):
     hyps = found_terms["conditions"]
     # Only remedies the person actually named: a word of it must be in the question, so an
     # ankle question doesn't turn into one about rest, ice and physical therapy.
-    words = set(re.findall(r"[a-z]+", question.lower()))
+    words = set(re.findall(r"[a-z]+", (said or question).lower()))
     remedies = [r for r in found_terms["remedies"]
                 if words & {w for w in re.findall(r"[a-z]+", r.lower()) if len(w) > 2}]
+    for r in found_terms["remedies"]:
+        if r not in remedies:
+            decisions.append(f"Skipped remedy {r}: the person didn't name it")
     brands = [] if "ingredients on the label" in question.lower() else found_terms.get("brands", [])
     timings["hypotheses"] = round(time.time() - t0, 1)
     topics = topics_for(question)
     summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
+    decisions.append("Used your sleep and activity log: the question is about what it measures"
+                     if summary else "Left your log out: the question isn't about sleep, "
+                     "activity or weight")
     t0 = time.time()
     # Exact condition names first; meaning-based search only fills the gaps, because on its
     # own it can rank Diphtheria above Eczema for "red, dry skin in the folds of my arms".
@@ -327,13 +347,15 @@ def prepare(question, user_id, as_of=None, clarified=False):
         """First new review for these terms; PubMed hiccups skip one term, not all of them."""
         for attempt in range(2):
             try:
-                found = research.reviews(terms, top_n=2, context=context)
+                reviews = research.reviews(terms, top_n=2, context=context)
                 break
             except Exception:  # PubMed slow or rate-limited: wait once, then give up on it
-                time.sleep(1.5)
+                if attempt == 0:
+                    time.sleep(1.5)
         else:
+            decisions.append(f"PubMed didn't answer for {about}; went on without it")
             return False
-        for p in found:
+        for p in reviews:
             if p["url"] not in seen:
                 seen.add(p["url"])
                 papers.append(dict(p, kind="research", about=about))
@@ -357,13 +379,13 @@ def prepare(question, user_id, as_of=None, clarified=False):
             add_review([h], h)
     timings["pubmed"] = round(time.time() - t0, 1)
     past = latest_per_question(memory.relevant(user_id, question, top_n=8))[:3]
+    sources = on_topic(question, remedy_rows + library_rows + guide_rows[:2] + papers, decisions)
     return {
         "question": question, "user": user_id, "urgent": None, "summary": summary,
         "hypotheses": hyps, "remedies": remedies, "brands": brands,
         "topics": topics or [h.lower() for h in hyps[:2]],
-        "sources": on_topic(question, remedy_rows + library_rows + guide_rows[:2] + papers),
-        "past": past,
-        "sql": list(store.executed), "backend": store.backend(), "timings": timings,
+        "sources": sources, "past": past, "decisions": decisions,
+        "sql": list(sql), "backend": store.backend(), "timings": timings,
     }
 
 
@@ -372,20 +394,28 @@ def turn(turns, user_id, as_of=None):
     {"role": "user" | "assistant", "content": ..., "kind": "ask" | "answer"}. Returns a
     follow-up question ({"ask": {...}}), the emergency message, or the prepared evidence for
     an answer (the page then streams it with /api/stream)."""
-    latest = turns[-1]["content"]
-    urgent = safety.check(latest)
+    urgent = danger(turns[-1]["content"], user_id)
     if urgent:
-        memory.remember(user_id, f"Danger sign reported: \"{latest}\". Sent to emergency help.",
-                        source="safety_filter", tags=["danger"], confidence=1.0)
         return {"urgent": urgent}
     t0 = time.time()
     ask = clarify.next_step(turns)
     if ask:
         return {"ask": ask, "timings": {"clarify": round(time.time() - t0, 1)}}
-    prep = prepare(clarify.case_text(turns), user_id, as_of, clarified=True)
+    clarify_s = round(time.time() - t0, 1)
+    said = " ".join(t["content"] for t in turns if t["role"] == "user")
+    prep = prepare(clarify.case_text(turns), user_id, as_of, clarified=True, said=said)
     prep["conversation"] = turns
-    prep.setdefault("timings", {})["clarify"] = round(time.time() - t0, 1)
+    prep["timings"]["clarify"] = clarify_s
     return prep
+
+
+def danger(text, user_id):
+    """The emergency message when the person's words show a danger sign, logged to H-MEM."""
+    urgent = safety.check(text)
+    if urgent:
+        memory.remember(user_id, f"Danger sign reported: \"{text}\". Sent to emergency help.",
+                        source="safety_filter", tags=["danger"], confidence=1.0)
+    return urgent
 
 
 def latest_per_question(past):
@@ -393,7 +423,7 @@ def latest_per_question(past):
     times does not fill the memory slots with copies of one old answer."""
     seen, keep = set(), []
     for m in sorted(past, key=lambda m: m["learnedAt"], reverse=True):
-        asked = re.search(r'asked "([^"]+)"', m["content"])
+        asked = re.search(r'asked "(.*?)"(?=; |\.$)', m["content"], re.S)
         key = asked.group(1).lower() if asked else m["id"]
         if key not in seen:
             seen.add(key)
@@ -427,22 +457,49 @@ def cited(text):
 
 
 def finish(prep, text):
-    text = check_citations(llm.clean(text), len(prep["sources"]), len(prep["past"]))
+    """Check the written answer, rewrite it once if it cites no source, save it to H-MEM and
+    write the decision trace."""
+    decisions = prep.setdefault("decisions", [])
+    raw = llm.clean(text)
+    text = check_citations(raw, len(prep["sources"]), len(prep["past"]))
+    marks = r"\[(?:\d+|log|m\d+)"
+    if len(re.findall(marks, text)) < len(re.findall(marks, raw)):
+        decisions.append("Removed citation marks that pointed at no source")
     if prep["sources"] and not cited(text):
-        # No trusted source cited at all: write it once more, told so plainly.
+        decisions.append("The answer cited no trusted source, so it was written again")
         retry = messages(prep)
         retry[-1]["content"] += ("\n\nYour last draft cited no source. Cite the evidence "
                                  "with [n] for every cause, step and research fact.")
         text = check_citations(llm.clean(llm.chat(retry)), len(prep["sources"]),
                                len(prep["past"]))
-    saved = remember_checkin(prep, text)
-    return {"text": text, "saved": saved, "cited": cited(text), "disclaimer": safety.DISCLAIMER}
+    numbers = cited(text)
+    if prep["sources"]:
+        decisions.append(f"The answer cites {len(numbers)} of {len(prep['sources'])} sources; "
+                         "only those are listed")
+    saved = remember_checkin(prep, text, numbers)
+    save_trace(prep, saved["id"], numbers)
+    return {"text": text, "saved": saved, "cited": numbers, "decisions": decisions,
+            "disclaimer": safety.DISCLAIMER}
+
+
+def save_trace(prep, memory_id, numbers):
+    """Everything the agent decided for this check-in, kept next to its H-MEM memory."""
+    TRACES.mkdir(parents=True, exist_ok=True)
+    trace = {k: prep.get(k) for k in ("question", "hypotheses", "remedies", "brands", "topics",
+                                      "decisions", "sql", "backend", "timings")}
+    trace["sources"] = [{k: s.get(k) for k in ("title", "source", "url", "kind", "relevance")}
+                        for s in prep["sources"]]
+    trace["cited"] = numbers
+    trace["recalled"] = [m["id"] for m in prep["past"]]
+    who = prep["user"] + (f"-v{memory.visitor.get()}" if memory.visitor.get() else "")
+    path = TRACES / f"{who}-{memory_id}.json"
+    path.write_text(json.dumps(trace, indent=1), encoding="utf-8")
 
 
 def answer(question, user_id, dry_run=False, as_of=None, clarified=False):
     prep = prepare(question, user_id, as_of, clarified)
-    if prep.get("urgent") or prep.get("error"):
-        return prep.get("urgent") or prep["error"]
+    if prep.get("urgent"):
+        return prep["urgent"]
     if prep.get("clarify"):
         return "Before answering, Check-In needs to know:\n" + "\n".join(
             f"- {c['q']} ({' / '.join(c['options'])})" for c in prep["clarify"]) + \

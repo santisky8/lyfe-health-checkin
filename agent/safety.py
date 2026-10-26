@@ -17,7 +17,7 @@ DANGER = [
     r"(worst|sudden|thunderclap) headache",
     r"faint(ed|ing)|passed out|unconscious",
     r"cough(ing)? (up )?blood|vomit(ing)? blood|blood in (my )?(stool|poo)",
-    r"seizure|fit(ting)?\b",
+    r"seizure|convuls|\b(having|had) (a )?fits?\b|\bfitting\b",
     r"suicid|kill myself|end my life|self[- ]harm|hurt myself",
     r"overdose|took too many",
     r"severe allergic|throat (swelling|closing)|anaphyla",
@@ -28,11 +28,22 @@ DANGER = [
     r"(sudden|can'?t) (see|speak)|lost (my )?(vision|speech)",
 ]
 _DANGER = re.compile("|".join(DANGER), re.IGNORECASE)
+_SELF_HARM = re.compile(
+    r"suicid|kill myself|end my life|self[- ]harm|hurt myself|overdose|took too many", re.IGNORECASE)
+# "No chest pain, just tired": a sign the person rules out in the same clause doesn't count.
+_NEGATED = re.compile(r"\b(no|not|without|never|don'?t have|isn'?t|wasn'?t)\b[^.,;!?]{0,25}$",
+                      re.IGNORECASE)
 
 
 def check(text):
-    """Return the emergency message if the text shows a danger sign, else None."""
-    return EMERGENCY if _DANGER.search(text) else None
+    """Return the emergency message if the person's own words show a danger sign, else None.
+    Only the person's words: the agent's questions mention danger signs on purpose."""
+    for m in _DANGER.finditer(text):
+        # Self-harm always counts: "I'm not ok and want to end my life" is not a denial.
+        before = text[max(0, m.start() - 40):m.start()]
+        if _SELF_HARM.match(m.group()) or not _NEGATED.search(before):
+            return EMERGENCY
+    return None
 
 
 DISCLAIMER = (

@@ -4,6 +4,7 @@ import csv
 import json
 import os
 import sqlite3
+import threading
 import urllib.request
 import uuid
 from pathlib import Path
@@ -14,7 +15,13 @@ CLEAN = Path(__file__).resolve().parent.parent / "data" / "clean"
 DB = CLEAN.parent / "checkin.sqlite"
 ZETARIS_DB = "LYFE_HEALTH_CHECKIN"
 _session = {}
-executed = []  # SQL sent in the current check-in, shown in the app as evidence
+_log = threading.local()  # SQL sent in the current check-in, per request thread
+
+
+def start_log():
+    """Start a fresh list of the SQL this check-in sends; the app shows it as evidence."""
+    _log.sql = []
+    return _log.sql
 
 
 def backend():
@@ -59,7 +66,7 @@ def _zetaris(sql, retry=True):
     headers = {"Authorization": f"Bearer {_session['token']}", "X-Org-ID": _session["org"],
                "X-Request-ID": str(uuid.uuid4())}
     try:
-        rows = _post("/api/proxy/query/sql/start", {"select": sql, "pageLimit": 200},
+        rows = _post("/api/proxy/query/sql/start", {"select": sql, "pageLimit": 5000},
                      headers)["records"]
         # Empty CSV cells come back as null; the SQLite path returns "", so match it.
         return [{k: ("" if v is None else v) for k, v in r.items()} for r in rows]
@@ -72,9 +79,10 @@ def _zetaris(sql, retry=True):
 
 
 def query(sql, params=()):
-    executed.append(_inline(sql, params))
+    inlined = _inline(sql, params)
+    getattr(_log, "sql", []).append(inlined)
     if backend() == "zetaris":
-        return _zetaris(_inline(sql, params))
+        return _zetaris(inlined)
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
     try:

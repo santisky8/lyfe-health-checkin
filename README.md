@@ -8,8 +8,9 @@ when to see a doctor, with a source behind every claim. Built for the Open Agent
 
 It never diagnoses, never treats and never replaces a doctor: it weighs possible causes and
 says how to tell them apart. Medicines and procedures appear only as options to ask a doctor
-about. Danger signs skip the advice and show emergency help. Everything runs on the user's
-own computer.
+about. Danger signs skip the advice and show emergency help. The data, search and memory run
+on the user's own computer; only the question, its evidence and a weekly summary go to the
+model.
 
 ## How it works
 
@@ -32,7 +33,8 @@ own computer.
    Lightning filestore tables in database `LYFE_HEALTH_CHECKIN` (`zetaris/load.sql`). A local
    SQLite copy is the offline fallback.
 5. **Live research** (`agent/research.py`): PubMed is searched at question time for a recent
-   systematic review (or review) on each possible cause.
+   systematic review (or review) on each possible cause, or, for a remedy question, on the
+   remedy for the person's conditions. Case reports are never used.
 6. **Memory with provenance through Meterless H-MEM** (`agent/memory.py`, `meterless/`):
    before answering, past check-ins and reported outcomes are recalled with H-MEM and
    re-ranked by meaning; after answering, the check-in (question, causes considered,
@@ -43,19 +45,26 @@ own computer.
    so the question and its evidence go to NVIDIA to be answered. The user's raw log stays
    local: only the weekly summary is sent. Any OpenAI-compatible endpoint works, including a
    local Ollama for a fully private mode. The answer streams to the page as it is written.
-8. **Cited answer** in four parts: possible causes, what you can do now, what the research
+8. **Only on-topic sources** (`checkin.on_topic`): every source is scored against the question
+   by meaning; sources far behind the best match are dropped, and PubMed case reports are
+   never used.
+9. **Cited answer** in four parts: possible causes, what you can do now, what the research
    says, see a doctor if. Sources are `[n]`, the user's numbers `[log]`, past check-ins `[m]`.
+   Every cause, step and fact must cite a source: an answer with no `[n]` is rewritten once,
+   citation marks that point at nothing are removed, and only the sources the answer cites
+   are listed under it, each with its publisher and site icon.
 
 ## Sources
 
 | Table | Source | Licence | Access |
 |---|---|---|---|
-| `user_log` | Fitbit data from 30 consenting people (Furberg et al., [Zenodo 53894](https://zenodo.org/records/53894)) | CC BY 4.0 | download |
+| `user_log` | Fitbit data from 33 consenting people (Furberg et al., [Zenodo 53894](https://zenodo.org/records/53894)) | CC BY 4.0 | download |
 | `myhealthfinder` | [MyHealthfinder](https://odphp.health.gov/myhealthfinder), US ODPHP | public domain | API, no key |
 | `medlineplus` | [MedlinePlus](https://medlineplus.gov), US National Library of Medicine | public domain | API, no key |
 | `medlineplus_topics` | All 1,016 English MedlinePlus health topics | public domain | NLM search API, no key |
 | live | [PubMed](https://pubmed.ncbi.nlm.nih.gov) reviews per question | titles, short excerpts and links | E-utilities, no key |
 | `pubmed` | [PubMed](https://pubmed.ncbi.nlm.nih.gov) systematic reviews and meta-analyses | abstracts, cited | E-utilities, no key |
+| `nccih` | [NCCIH](https://www.nccih.nih.gov) herb and supplement pages, US NIH | public domain | download |
 | `nutrient_limits` | [NIH Office of Dietary Supplements](https://ods.od.nih.gov) fact sheets | public domain | typed from fact sheets |
 
 ## Setup
@@ -78,9 +87,18 @@ ask a why question, and the right-hand panel shows each step: the safety check, 
 to Zetaris, the memories H-MEM recalled, the model, and the memory it saved. Settings
 (`ZETARIS_*`, `LLM_*`) come from `.env.local`.
 
-`--user <id>` picks one of the 30 Fitbit users (default `1503960366`).
+`--user <id>` picks one of the 33 Fitbit users (default `1503960366`).
 `--note "Went to bed earlier, less tired"` saves what the user tried and how it went.
 Memory needs Node 22.7+ (it runs the TypeScript engine with `--experimental-transform-types`).
+
+## Decisions you can audit
+
+Every choice the agent makes is recorded with its reason: whether the log is used, remedies it
+skipped because the person didn't name them, sources dropped as off-topic (with their match
+score and the score needed), PubMed searches that failed, citation marks removed, and whether
+the answer had to be rewritten to cite a source. The app shows them under "Show your work",
+next to the SQL sent to Zetaris and the memories recalled from H-MEM, and each check-in's full
+trace is saved to `data/traces/<user>-<memory id>.json`, next to its H-MEM memory and ledger.
 
 ## Pre-existing work (declared)
 

@@ -4,6 +4,7 @@
 These are search terms for the library and PubMed, not a diagnosis; the answer weighs them
 against the evidence.
 """
+import os
 import re
 
 import llm
@@ -32,7 +33,6 @@ def _names(line):
 def _model():
     """The fast model for search terms when one is set (Nemotron Bolt on Nightshift): big
     reasoning models spend the token budget thinking and may return no list at all."""
-    import os
     return os.environ.get("HYPO_MODEL") or None
 
 
@@ -52,10 +52,6 @@ def analyse(question):
         elif key.startswith("brand"):
             found["brands"] = _names(rest)[:2]
     return found
-
-
-def candidates(question):
-    return analyse(question)["conditions"]
 
 
 if __name__ == "__main__":
