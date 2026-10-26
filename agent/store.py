@@ -64,7 +64,8 @@ def _zetaris(sql, retry=True):
         # Empty CSV cells come back as null; the SQLite path returns "", so match it.
         return [{k: ("" if v is None else v) for k, v in r.items()} for r in rows]
     except urllib.error.HTTPError as e:
-        if e.code == 401 and retry:  # token expired
+        # An expired token comes back as 400 or 401 from Lightning: log in again once.
+        if e.code in (400, 401, 403) and retry:
             _session.clear()
             return _zetaris(sql, retry=False)
         raise
