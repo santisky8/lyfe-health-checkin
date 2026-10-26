@@ -260,7 +260,7 @@ async function api(path, body) {
 // ---------- your week ----------
 async function loadUsers() {
   users = await api("/api/users");
-  $("#user").innerHTML = users.map(u => `<option value="${esc(u.user_id)}">${esc(u.user_id.slice(-4))}</option>`).join("");
+  $("#user").innerHTML = users.map(u => `<option value="${esc(u.user_id)}">${u.n} · ${u.nights ? `${u.nights} nights of sleep` : "no sleep data"}</option>`).join("");
   $("#user").value = users.some(u => u.user_id === "1503960366") ? "1503960366" : users[0].user_id;
   $("#user").onchange = () => { weeks(); refresh(); };
   $("#asof").onchange = refreshWeek;
@@ -285,7 +285,7 @@ async function refreshWeek() {
   const steps = last7.reduce((a, r) => a + +r.steps, 0) / Math.max(last7.length, 1);
   const short = sl.filter(m => m < 420).length;
   const first = last7[0]?.day, lastDay = last7[last7.length - 1]?.day;
-  $("#range").textContent = first ? `${fmt(first)} to ${fmt(lastDay)} · person ${$("#user").value.slice(-4)}` : "No data for this week";
+  $("#range").textContent = first ? `${fmt(first)} to ${fmt(lastDay)} · person ${users.find(u => u.user_id === $("#user").value)?.n ?? ""}` : "No data for this week";
   $("#hello").innerHTML = sleep == null ? "Here's your week." : sleep >= 7 ? "You slept well this week." : `You slept <em>${sleep.toFixed(1)} hours</em> a night this week.`;
   const st = ok => `<span class="status ${ok ? "ok" : "no"}">${ok ? "meets guideline" : "below guideline"}</span>`;
   $("#tiles").innerHTML = `

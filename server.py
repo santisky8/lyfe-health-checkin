@@ -33,9 +33,21 @@ _lock = threading.Lock()
 
 
 def users():
-    return store.query(
+    """People in the Fitbit data, with how many nights of sleep each one logged. Many wore the
+    watch only in the day, so the people with the most sleep data come first."""
+    found = store.query(
         f"SELECT user_id, min(day) AS first_day, max(day) AS last_day, count(*) AS days "
         f"FROM {store.table('user_log')} GROUP BY user_id ORDER BY user_id")
+    nights = {}
+    for r in store.query(f"SELECT user_id, minutes_asleep FROM {store.table('user_log')}"):
+        if str(r["minutes_asleep"]).strip() not in ("", "0"):
+            nights[r["user_id"]] = nights.get(r["user_id"], 0) + 1
+    for u in found:
+        u["nights"] = nights.get(u["user_id"], 0)
+    found.sort(key=lambda u: (u["user_id"] != "1503960366", -u["nights"]))  # demo person first
+    for i, u in enumerate(found, 1):
+        u["n"] = i
+    return found
 
 
 def log(user_id, as_of, days=28):
