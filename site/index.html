@@ -314,7 +314,7 @@ function show(up) {
     el.classList.toggle("on", up);
     el.querySelector(".live-text").textContent = up
       ? "Live now. Answers take about 30 seconds."
-      : "The live demo is offline right now. The screenshots and code show what it does.";
+      : "The live demo runs on the builder's laptop and is offline now. The video, screenshots and code show what it does.";
   });
   document.querySelectorAll(".live-btn").forEach(a => {
     if (up) { a.href = DEMO; a.removeAttribute("aria-disabled"); a.textContent = "Try the live demo"; }
