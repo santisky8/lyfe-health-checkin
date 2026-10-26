@@ -29,6 +29,18 @@ github.com/Meterless/Meterless, engines/ folder (Apache-2.0, TypeScript, Node 24
   and topic routing, verify with SCOUT_IMPL=... npm run evals.
 - Nightshift (Windows app, unsigned) is optional; only for the NVIDIA prize.
 
+## Nightshift (done 2026-10-25, evening)
+Runs on the Windows laptop (Win10, 940MX 2 GB: too weak for local models, so it serves NVIDIA
+cloud Nemotron through the user's nvapi key saved in Nightshift). Hotspot mode on, Wi-Fi Private,
+firewall rule "Nightshift 8088 LAN" (TCP 8088, Private, 192.168.0.0/24). The laptop must stay
+plugged in (it sleeps on battery). `.env.local`: LLM_BASE_URL=http://192.168.0.43:8088/v1,
+LLM_MODEL=nvidia/nemotron-3-ultra-550b-a55b, LLM_API_KEY = runtime proxy-token. The Ollama lines
+are kept as comments for fallback; embeddings still use local Ollama (nomic-embed-text).
+Ultra sends its reasoning ending in </think> with no opening tag; llm.py strips it.
+6 user tests: 14-50 s each (was 2-6 min). Weak spots are retrieval, not the model: empty
+Sources in the red-dots and Gut FX answers, off-topic MedlinePlus pages for the skin question,
+NCCIH arnica page not retrieved, and test check-ins in H-MEM steering later answers.
+
 ## Zetaris (done 2026-10-25, ~3 PM Toronto)
 Running locally from ~/Downloads/zetaris/zetaris-platform (docker compose; Docker Desktop must be
 on). Registry login lives in ~/.docker-zetaris (DOCKER_CONFIG) because `pass` is not set up.

@@ -49,6 +49,33 @@ def chat(messages, stream=False, max_tokens=None, model=None, temperature=0.2):
 
 
 def _pieces(resp, ollama):
+    """Yield answer text. Reasoning models behind Nightshift (Nemotron Ultra) may send their
+    reasoning first, ending in </think> with no opening tag, so hold text back until that tag
+    shows up; if it never does, the held text was the answer."""
+    held, thinking = "", not ollama
+    for piece in _raw_pieces(resp, ollama):
+        if not thinking:
+            yield piece
+            continue
+        held += piece
+        if "</think>" in held:
+            thinking = False
+            rest = held.rsplit("</think>", 1)[1].lstrip()
+            if rest:
+                yield rest
+        elif len(held) > 200 and "<think>" not in held and not _thinks():
+            thinking = False
+            yield held
+    if thinking and held:
+        yield clean(held)
+
+
+def _thinks():
+    """True when LLM_MODEL is known to reason before answering."""
+    return any(k in os.environ.get("LLM_MODEL", "") for k in ("ultra", "think", "deep"))
+
+
+def _raw_pieces(resp, ollama):
     with resp:
         for raw in resp:
             line = raw.decode("utf-8").strip()
@@ -65,4 +92,7 @@ def _pieces(resp, ollama):
 
 
 def clean(text):
-    return re.sub(r"<think>.*?</think>\s*", "", text, flags=re.S).strip()
+    text = re.sub(r"<think>.*?</think>\s*", "", text, flags=re.S)
+    if "</think>" in text:  # reasoning sent without an opening tag
+        text = text.rsplit("</think>", 1)[1]
+    return text.strip()
