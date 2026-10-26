@@ -74,8 +74,10 @@ Rules: a source counts only if its text supports the claim; skip sources that ar
 If the question asks why something seemed to work, explain honestly and kindly what the
 evidence says, including placebo, natural ups and downs, and other changes made at the same
 time. Cite every claim with [n] for a source, [log] for their numbers, [m1], [m2] for past
-check-ins. If past check-ins are given, say what changed since then. No claim without a
-source. Plain words, short sentences, under 300 words."""
+check-ins. If past check-ins are given, say what changed since then. Past check-ins only
+say what was asked, tried and suggested before: never use them as evidence for a medical
+fact. No claim without a source. If there is no evidence for a point, say so instead of
+citing. Plain words, short sentences, under 300 words."""
 
 # Words that make the user's log (sleep, activity, weight) relevant. Not "walk": "pain when
 # walking" is about the ankle, not the step count.
@@ -149,7 +151,7 @@ def sources_for(topics, per_table=2):
 
 def messages(prep):
     evidence = "\n\n".join(f"[{i}] {s['source']}: {s['title']}\n{s['text']}"
-                           for i, s in enumerate(prep["sources"], 1))
+                           for i, s in enumerate(prep["sources"], 1)) or "None found."
     history = "\n".join(f"[m{i}] {m['learnedAt'][:10]} ({m['source']}): {m['content']}"
                         for i, m in enumerate(prep["past"], 1)) or "None yet."
     summary = prep["summary"]
@@ -240,14 +242,23 @@ def prepare(question, user_id, as_of=None):
     timings = {}
     t0 = time.time()
     found_terms = hypotheses.analyse(question)
-    hyps, remedies = found_terms["conditions"], found_terms["remedies"]
+    hyps = found_terms["conditions"]
+    # Only remedies the person actually named: a word of it must be in the question, so an
+    # ankle question doesn't turn into one about rest, ice and physical therapy.
+    words = set(re.findall(r"[a-z]+", question.lower()))
+    remedies = [r for r in found_terms["remedies"]
+                if words & {w for w in re.findall(r"[a-z]+", r.lower()) if len(w) > 2}]
     brands = [] if "ingredients on the label" in question.lower() else found_terms.get("brands", [])
     timings["hypotheses"] = round(time.time() - t0, 1)
     topics = topics_for(question)
     summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
     t0 = time.time()
-    found = [r for r in library.search(f"{question}. Possibly: {', '.join(hyps)}")
-             if r["match"] >= MIN_MATCH][:3]
+    # Exact condition names first; meaning-based search only fills the gaps, because on its
+    # own it can rank Diphtheria above Eczema for "red, dry skin in the folds of my arms".
+    found = library.by_name(hyps)[:3]
+    ids = {r["doc_id"] for r in found}
+    found += [r for r in library.search(f"{question}. Possibly: {', '.join(hyps)}")
+              if r["match"] >= MIN_MATCH and r["doc_id"] not in ids][:3 - len(found)]
     library_rows = [{"title": r["title"], "text": r["text"], "url": r["url"],
                      "source": r["source"], "kind": "library", "match": r["match"]} for r in found]
     guide_rows = ([dict(s, kind="guide") for s in sources_for(topics, per_table=1)]
@@ -257,27 +268,42 @@ def prepare(question, user_id, as_of=None):
         remedy_rows += [dict(r, kind="remedy", about=name) for r in remedy_facts(name)]
     timings["zetaris"] = round(time.time() - t0, 1)
     t0 = time.time()
-    try:
-        papers, seen = [], set()
-        for name in remedies[:2]:  # the remedy for this condition first, then on its own
-            for p in (research.reviews([name], top_n=2, context=hyps[0] if hyps else None)
-                      or research.reviews([name], top_n=2)):
-                if p["url"] not in seen:
-                    seen.add(p["url"])
-                    papers.append(dict(p, kind="research", about=name))
-                    break
-        # One review per candidate cause; when the question is about a remedy, the remedy
-        # evidence matters more, so only the most likely cause gets a paper of its own.
-        for h in hyps[:1] if remedies else hyps[:3]:
-            for p in research.reviews([h], top_n=2):
-                if p["url"] not in seen:
-                    seen.add(p["url"])
-                    papers.append(dict(p, kind="research", about=h))
-                    break
-    except Exception:  # PubMed down or slow: answer from the library alone
-        papers = []
+    papers, seen = [], set()
+
+    def add_review(terms, about, context=None):
+        """First new review for these terms; PubMed hiccups skip one term, not all of them."""
+        for attempt in range(2):
+            try:
+                found = research.reviews(terms, top_n=2, context=context)
+                break
+            except Exception:  # PubMed slow or rate-limited: wait once, then give up on it
+                time.sleep(1.5)
+        else:
+            return False
+        for p in found:
+            if p["url"] not in seen:
+                seen.add(p["url"])
+                papers.append(dict(p, kind="research", about=about))
+                return True
+        return False
+
+    generic = [r for r in remedies if r not in brands]  # PubMed knows ginger, not Gut FX
+    for name in generic[:2]:
+        # The remedy for these conditions only: on its own, "honey" finds honey for diabetic
+        # foot ulcers, which says nothing about a sore throat.
+        if hyps:
+            add_review([name], name, context=hyps)
+        else:
+            add_review([name], name)
+    if generic and hyps:
+        # A remedy question: the person's own conditions matter as they meet the remedy
+        # ("antidepressants" with diabetes), not on their own ("heart failure in diabetes").
+        add_review([hyps[0]], hyps[0], context=generic[0])
+    else:
+        for h in hyps[:3]:  # one review per candidate cause
+            add_review([h], h)
     timings["pubmed"] = round(time.time() - t0, 1)
-    past = memory.relevant(user_id, question)
+    past = latest_per_question(memory.relevant(user_id, question, top_n=8))[:3]
     return {
         "question": question, "user": user_id, "urgent": None, "summary": summary,
         "hypotheses": hyps, "remedies": remedies, "brands": brands,
@@ -287,13 +313,41 @@ def prepare(question, user_id, as_of=None):
     }
 
 
+def latest_per_question(past):
+    """Keep only the newest check-in for each question asked, so asking the same thing three
+    times does not fill the memory slots with copies of one old answer."""
+    seen, keep = set(), []
+    for m in sorted(past, key=lambda m: m["learnedAt"], reverse=True):
+        asked = re.search(r'asked "([^"]+)"', m["content"])
+        key = asked.group(1).lower() if asked else m["id"]
+        if key not in seen:
+            seen.add(key)
+            keep.append(m)
+    return sorted(keep, key=lambda m: -m.get("similarity", 0))
+
+
+def check_citations(text, n_sources, n_past):
+    """Drop citation marks that point at nothing, such as [3] when only two sources were
+    given, so every remaining mark opens a real source."""
+    def keep(m):
+        refs = [r.strip() for r in m.group(1).split(",")]
+        ok = [r for r in refs if r == "log"
+              or (r.isdigit() and 1 <= int(r) <= n_sources)
+              or (re.fullmatch(r"m\d+", r) and 1 <= int(r[1:]) <= n_past)]
+        return f"[{', '.join(ok)}]" if ok else ""
+    if not n_sources:  # a model-made reference list with no sources behind it
+        text = re.sub(r"\n\s*\[\d+\][^\n]*", "", text)
+    text = re.sub(r"\[((?:\d+|log|m\d+)(?:\s*,\s*(?:\d+|log|m\d+))*)\]", keep, text)
+    return re.sub(r" +([.,;])", r"\1", re.sub(r"(\S)  +(\S)", r"\1 \2", text))
+
+
 def respond(prep):
     """Model answer for a prepared check-in, then save the check-in to memory."""
     return finish(prep, ask_model(prep))
 
 
 def finish(prep, text):
-    text = llm.clean(text)
+    text = check_citations(llm.clean(text), len(prep["sources"]), len(prep["past"]))
     saved = remember_checkin(prep, text)
     return {"text": text, "saved": saved, "disclaimer": safety.DISCLAIMER}
 

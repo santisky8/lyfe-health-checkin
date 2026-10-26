@@ -75,6 +75,31 @@ def search(question, top_n=4):
     return rows
 
 
+def by_name(names):
+    """Topics whose title or "also called" names match a condition name, read through Zetaris.
+    Exact names beat partial ones: "Atopic dermatitis" finds Eczema (also called Atopic
+    Dermatitis), not every page that mentions dermatitis. One topic per name."""
+    found, seen = [], set()
+    for name in names:
+        n = name.lower().strip()
+        if len(n) < 4:
+            continue
+        rows = store.query(
+            f"SELECT doc_id, title, also_called, substr(text, 1, 1500) AS text, url, source "
+            f"FROM {store.table('medlineplus_topics')} "
+            f"WHERE lower(title) LIKE ? OR lower(also_called) LIKE ?", (f"%{n}%", f"%{n}%"))
+
+        def rank(r):
+            aliases = [a.strip().lower() for a in r["also_called"].split(";")]
+            return 2 if n in (r["title"].lower(), *aliases) else 1 if n in r["title"].lower() else 0
+        rows = [r for r in rows if r["doc_id"] not in seen]
+        if rows:
+            best = max(rows, key=rank)
+            seen.add(best["doc_id"])
+            found.append(dict(best, match=1.0, about=name))
+    return found
+
+
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).parent))
     if sys.argv[1:] == ["build"]:

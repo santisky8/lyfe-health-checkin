@@ -21,15 +21,26 @@ ASK = ("For this message, give two lines.\n"
 
 
 def _names(line):
-    names = [re.sub(r"^[\s\d.\-*]+|[\s.]+$", "", n) for n in re.split(r"[;,]", line)]
-    return [n for n in names if 2 < len(n) < 60 and n.lower() != "none"]
+    """Clean names: drop notes such as "Gut FX (product)" -> "Gut FX", and anything that reads
+    like a sentence ("Since no specific condition is mentioned") rather than a name."""
+    names = [re.sub(r"\s*\(.*?\)\s*|\s*\(.*$", " ", n) for n in re.split(r"[;,]", line)]
+    names = [re.sub(r"^[\s\d.\-*]+|[\s.]+$", "", n) for n in names]
+    return [n for n in names if 2 < len(n) < 60 and len(n.split()) <= 5
+            and not n.lower().startswith(("none", "no ", "since ", "not "))]
+
+
+def _model():
+    """The fast model for search terms when one is set (Nemotron Bolt on Nightshift): big
+    reasoning models spend the token budget thinking and may return no list at all."""
+    import os
+    return os.environ.get("HYPO_MODEL") or None
 
 
 def analyse(question):
     """Candidate conditions and the remedies or products the person asks about."""
     text = llm.chat([{"role": "system", "content": SYSTEM},
                      {"role": "user", "content": ASK.format(question=question)}],
-                    max_tokens=120, temperature=0)
+                    max_tokens=400, temperature=0, model=_model())
     found = {"conditions": [], "remedies": [], "brands": []}
     for line in text.splitlines():
         key, _, rest = line.partition(":")

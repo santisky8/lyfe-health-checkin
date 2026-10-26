@@ -21,13 +21,15 @@ def _get(path, params):
 
 def reviews(terms, top_n=3, context=None):
     """Recent systematic reviews and meta-analyses on any of the terms, most relevant first.
-    With `context` (a condition), only papers that also mention it in the title or abstract."""
+    With `context` (a condition, or a list of them), only papers that also mention one of them
+    in the title or abstract."""
     terms = [t for t in dict.fromkeys(terms) if t][:3]
     if not terms:
         return []
     topic = " OR ".join(f'"{t}"[ti]' for t in terms)
-    if context:
-        topic = f'({topic}) AND "{context}"[tiab]'
+    if context:  # one condition or several; any of them counts
+        ctx = [context] if isinstance(context, str) else list(context)
+        topic = f'({topic}) AND (' + " OR ".join(f'"{c}"[tiab]' for c in ctx) + ")"
     # Strongest evidence first; widen only when a rare topic has no systematic review.
     ids = []
     for kind in ("(systematic review[pt] OR meta-analysis[pt])", "review[pt]", ""):
