@@ -90,6 +90,7 @@ PERSONAL = ("sleep", "tired", "energy", "exhaust", "insomnia", "fatigue", "how a
             "steps", "weight", "exercise enough")
 MIN_MATCH = 0.68  # below this a library topic is more likely noise than help
 MIN_RELEVANCE = 0.5  # below this a source is off-topic for the question (see on_topic)
+RELEVANCE_GAP = 0.12  # and this far behind the best source, it is likely off-topic too
 
 
 def topics_for(question):
@@ -166,14 +167,18 @@ def score_sources(question, sources):
         s["relevance"] = round(sum(a * b for a, b in zip(q, library._unit(v))), 3)
 
 
-def on_topic(question, sources, keep_at_least=2):
+def on_topic(question, sources):
     """Drop sources that are not about the question, such as a surgery case report for red dots
-    on the legs. Remedy pages stay: they were found by the remedy's own name. The best
-    `keep_at_least` stay too, so an answer is never left without a source to cite."""
+    on the legs. A source stays when it is close to the question and not far behind the best
+    match. Remedy pages stay: they were found by the remedy's own name. The best source always
+    stays, so an answer is never left without one to cite."""
     score_sources(question, sources)
-    best = sorted(sources, key=lambda s: -s.get("relevance", 0))[:keep_at_least]
-    return [s for s in sources if s.get("kind") == "remedy" or s in best
-            or s.get("relevance", 0) >= MIN_RELEVANCE]
+    if not sources:
+        return sources
+    best = max(sources, key=lambda s: s["relevance"])
+    floor = max(MIN_RELEVANCE, best["relevance"] - RELEVANCE_GAP)
+    return [s for s in sources if s.get("kind") == "remedy" or s is best
+            or s["relevance"] >= floor]
 
 
 def messages(prep):
