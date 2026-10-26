@@ -16,29 +16,34 @@ own computer.
 1. **Danger-sign filter** (`agent/safety.py`): chest pain, stroke signs, trouble breathing,
    a spreading red swelling, rash with fever, self-harm and similar go straight to emergency
    help. No model call.
-2. **Possible causes** (`agent/hypotheses.py`): a fast model (Nemotron 3.5 Bolt, `HYPO_MODEL`)
+2. **Questions first** (`agent/clarify.py`): when the safe answer depends on a detail the
+   question leaves out, the agent asks up to three short questions with tap answers before
+   anything else. "How long should I take arnica?" asks how it is taken, because arnica
+   swallowed as an herbal supplement is toxic while gels and homeopathic pellets are not.
+   Clear questions ("why am I tired every afternoon?") go straight on.
+3. **Possible causes** (`agent/hypotheses.py`): a fast model (Nemotron 3.5 Bolt, `HYPO_MODEL`)
    turns the person's words into up to four standard condition names. They are search terms,
    not a diagnosis.
-3. **Health library and the user's log through Zetaris** (`agent/library.py`, `agent/store.py`):
+4. **Health library and the user's log through Zetaris** (`agent/library.py`, `agent/store.py`):
    1,016 MedlinePlus topics are matched first by name (each condition against topic titles and
    "also called" names, so "atopic dermatitis" finds Eczema), then by meaning with a local
    embedding model (`nomic-embed-text`) for anything the names miss, and read through the Zetaris Lightning REST API, together with the
    user's last 7 days of sleep and activity when the question is about them. All sources are
    Lightning filestore tables in database `LYFE_HEALTH_CHECKIN` (`zetaris/load.sql`). A local
    SQLite copy is the offline fallback.
-4. **Live research** (`agent/research.py`): PubMed is searched at question time for a recent
+5. **Live research** (`agent/research.py`): PubMed is searched at question time for a recent
    systematic review (or review) on each possible cause.
-5. **Memory with provenance through Meterless H-MEM** (`agent/memory.py`, `meterless/`):
+6. **Memory with provenance through Meterless H-MEM** (`agent/memory.py`, `meterless/`):
    before answering, past check-ins and reported outcomes are recalled with H-MEM and
    re-ranked by meaning; after answering, the check-in (question, causes considered,
    suggestion, source links, Zetaris rows) is saved with a source and confidence. Every
    change goes to H-MEM's append-only trust ledger.
-6. **Model through Meterless Nightshift** (`agent/llm.py`): Nightshift runs on a Windows PC on
+7. **Model through Meterless Nightshift** (`agent/llm.py`): Nightshift runs on a Windows PC on
    the same network (Hotspot mode) and serves NVIDIA Nemotron 3 Ultra from build.nvidia.com,
    so the question and its evidence go to NVIDIA to be answered. The user's raw log stays
    local: only the weekly summary is sent. Any OpenAI-compatible endpoint works, including a
    local Ollama for a fully private mode. The answer streams to the page as it is written.
-7. **Cited answer** in four parts: possible causes, what you can do now, what the research
+8. **Cited answer** in four parts: possible causes, what you can do now, what the research
    says, see a doctor if. Sources are `[n]`, the user's numbers `[log]`, past check-ins `[m]`.
 
 ## Sources

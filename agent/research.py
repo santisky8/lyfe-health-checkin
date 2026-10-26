@@ -70,6 +70,35 @@ def reviews(terms, top_n=3, context=None):
     return out
 
 
+SAFETY_BOOKS = {"Drugs and Lactation Database": "LactMed (NIH, US)",
+                "LiverTox": "LiverTox (NIH, US)"}
+
+
+def nih_safety(name, top_n=2):
+    """NIH safety summaries for an herb or supplement: the LactMed and LiverTox entries, which
+    are indexed in PubMed as book chapters. They cover herbs that NCCIH has no page for, such
+    as arnica ("oral ingestion of botanical Arnica products should be avoided")."""
+    word = name.split()[0]
+    query = f'"{word}"[ti] AND ("LiverTox" OR "Drugs and Lactation Database")'
+    ids = json.loads(_get("esearch.fcgi", {"db": "pubmed", "term": query, "retmax": top_n,
+                                           "retmode": "json"}))["esearchresult"]["idlist"]
+    if not ids:
+        return []
+    time.sleep(0.35)
+    root = ET.fromstring(_get("efetch.fcgi", {"db": "pubmed", "id": ",".join(ids),
+                                              "retmode": "xml"}))
+    out = []
+    for doc in root.iter("PubmedBookArticle"):
+        book = doc.findtext(".//Book/BookTitle") or ""
+        source = next((s for k, s in SAFETY_BOOKS.items() if book.startswith(k)), None)
+        text = " ".join("".join(a.itertext()) for a in doc.iter("AbstractText")).strip()
+        if source and text:
+            out.append({"title": f"{doc.findtext('.//ArticleTitle')}: safety summary",
+                        "text": text[:1400], "source": source,
+                        "url": f"https://pubmed.ncbi.nlm.nih.gov/{doc.findtext('.//PMID')}/"})
+    return out
+
+
 if __name__ == "__main__":
     import sys
     for r in reviews(sys.argv[1:]):

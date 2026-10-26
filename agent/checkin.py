@@ -15,6 +15,7 @@ import re
 import sys
 import time
 
+import clarify
 import hypotheses
 import library
 import llm
@@ -229,7 +230,7 @@ def remedy_facts(name, limit=3):
              "source": r["source"]} for r in keep[:limit]]
 
 
-def prepare(question, user_id, as_of=None):
+def prepare(question, user_id, as_of=None, clarified=False):
     """Everything the answer is built from, gathered before it is written: the safety check,
     candidate causes, library topics and the user's numbers through Zetaris, live PubMed
     reviews, and past check-ins from H-MEM."""
@@ -240,6 +241,13 @@ def prepare(question, user_id, as_of=None):
                         source="safety_filter", tags=["danger"], confidence=1.0)
         return {"question": question, "user": user_id, "urgent": urgent}
     timings = {}
+    t0 = time.time()
+    if not clarified:
+        asks = clarify.questions(question)
+        if asks:  # ask first; the page sends the answers back with clarified=True
+            return {"question": question, "user": user_id, "urgent": None, "clarify": asks,
+                    "timings": {"clarify": round(time.time() - t0, 1)}}
+    timings["clarify"] = round(time.time() - t0, 1)
     t0 = time.time()
     found_terms = hypotheses.analyse(question)
     hyps = found_terms["conditions"]
@@ -265,7 +273,13 @@ def prepare(question, user_id, as_of=None):
                   if topics and summary else [])
     remedy_rows = []
     for name in remedies:
-        remedy_rows += [dict(r, kind="remedy", about=name) for r in remedy_facts(name)]
+        rows = remedy_facts(name)
+        if not rows and name not in brands:  # no NCCIH page: NIH LactMed and LiverTox instead
+            try:
+                rows = research.nih_safety(name)
+            except Exception:
+                rows = []
+        remedy_rows += [dict(r, kind="remedy", about=name) for r in rows]
     timings["zetaris"] = round(time.time() - t0, 1)
     t0 = time.time()
     papers, seen = [], set()
@@ -352,10 +366,14 @@ def finish(prep, text):
     return {"text": text, "saved": saved, "disclaimer": safety.DISCLAIMER}
 
 
-def answer(question, user_id, dry_run=False, as_of=None):
-    prep = prepare(question, user_id, as_of)
+def answer(question, user_id, dry_run=False, as_of=None, clarified=False):
+    prep = prepare(question, user_id, as_of, clarified)
     if prep.get("urgent") or prep.get("error"):
         return prep.get("urgent") or prep["error"]
+    if prep.get("clarify"):
+        return "Before answering, Check-In needs to know:\n" + "\n".join(
+            f"- {c['q']} ({' / '.join(c['options'])})" for c in prep["clarify"]) + \
+            '\n\nRun again with --answers "..."'
     if dry_run:
         return json.dumps(prep, indent=1)
     out = respond(prep)
@@ -380,12 +398,14 @@ def main():
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--note", help="what the user tried and how it went, saved to memory")
     p.add_argument("--as-of", help="check in as of this date (YYYY-MM-DD), for demos on the log")
+    p.add_argument("--answers", help="answers to the clarifying questions, as one line")
     a = p.parse_args()
     if a.note:
         m = note(a.user, a.note)
         print(f"Saved to memory as {m['id']}.")
     elif a.question:
-        print(answer(a.question, a.user, a.dry_run, a.as_of))
+        q = f"{a.question}\n\nMy answers:\n{a.answers}" if a.answers else a.question
+        print(answer(q, a.user, a.dry_run, a.as_of, clarified=bool(a.answers)))
     else:
         p.error("give a question or --note")
 

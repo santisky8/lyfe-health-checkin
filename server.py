@@ -68,8 +68,10 @@ class Handler(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         try:
             if self.path == "/api/prepare":
-                prep = checkin.prepare(body["question"].strip()[:500], body["user"],
-                                       body.get("as_of") or None)
+                prep = checkin.prepare(body["question"].strip()[:1500], body["user"],
+                                       body.get("as_of") or None, bool(body.get("clarified")))
+                if prep.get("clarify"):
+                    return self._send(200, prep)
                 prep["id"] = str(uuid.uuid4())
                 with _lock:
                     _prepared[prep["id"]] = prep

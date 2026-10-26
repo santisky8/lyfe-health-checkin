@@ -92,6 +92,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 .label-box p{margin:0 0 8px;font-weight:600}
 .label-box textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
 .label-box button{margin-top:8px;background:var(--sun);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:600;cursor:pointer}
+.clarify p{margin:0 0 10px;font-weight:600}
+.clarify fieldset{border:0;margin:0 0 14px;padding:0}
+.clarify legend{font-weight:600;margin-bottom:8px;padding:0}
+.clarify .opts{display:flex;flex-wrap:wrap;gap:8px}
+.clarify .opt{border:1px solid var(--line);background:var(--surface);color:inherit;border-radius:999px;padding:7px 13px;cursor:pointer;font:inherit;font-size:.92rem;text-align:left}
+.clarify .opt[aria-pressed="true"]{background:var(--sun);border-color:var(--sun);color:#fff}
+.clarify input{margin-top:8px;width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--surface);color:inherit;font:inherit}
+.clarify .send{background:var(--sun);color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:600;cursor:pointer}
 .block.research h4{color:var(--zet)}
 .kind{font:500 .62rem var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:4px}
 .block svg{flex:none}
@@ -340,8 +348,10 @@ function steps(list) {
 }
 
 // ---------- check-in ----------
+let clarified = false;  // true when the question already carries answers to Check-In's questions
 async function checkIn() {
   const question = $("#question").value.trim(); if (!question) return $("#question").focus();
+  const answered = clarified; clarified = false;
   const user = $("#user").value, as_of = $("#asof").value;
   $("#go").disabled = true; $(".intro")?.remove();
   const turn = document.createElement("div"); turn.className = "turn";
@@ -350,7 +360,8 @@ async function checkIn() {
   const card = turn.querySelector(".card");
   steps([{state:"run", by:"Safety", title:"Checking for danger signs", detail:"Before anything else"}]);
   try {
-    const prep = await api("/api/prepare", {question, user, as_of});
+    const prep = await api("/api/prepare", {question, user, as_of, clarified: answered});
+    if (prep.clarify) return askFirst(card, question, prep.clarify);
     if (prep.urgent) {
       steps([{state:"stop", by:"Safety", title:"Danger sign found", detail:"Advice skipped. Emergency help shown. Logged to the journal."}]);
       card.outerHTML = `<div class="urgent"><h3>Please get help now</h3><p>${esc(prep.urgent)}</p></div>`;
@@ -399,7 +410,7 @@ async function checkIn() {
     if (box) box.querySelector("button").onclick = () => {
       const ing = box.querySelector("textarea").value.trim(); if (!ing) return box.querySelector("textarea").focus();
       $("#question").value = `${question}\n\nIngredients on the label of ${prep.brands.join(", ")}: ${ing}`;
-      checkIn();
+      clarified = true; checkIn();
     };
     card.querySelector(".note button").onclick = async ev => {
       const inp = card.querySelector(".note input"); if (!inp.value.trim()) return inp.focus();
@@ -410,6 +421,32 @@ async function checkIn() {
   } catch (e) {
     card.innerHTML = `<p class="waiting">Something went wrong: ${esc(e.message)}</p>`;
   } finally { $("#go").disabled = false; }
+}
+// Check-In asks before answering when the answer depends on a detail the question leaves
+// out, such as whether arnica is swallowed as a supplement or rubbed on as a gel.
+function askFirst(card, question, asks) {
+  steps([{state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
+         {state:"run", by:"Nightshift", title:"A few questions first", detail:"The safe answer depends on these details"}]);
+  card.innerHTML = `<div class="clarify"><p>Before I answer, a few quick questions:</p>${asks.map((a, i) => `
+    <fieldset data-q="${esc(a.q)}"><legend>${esc(a.q)}</legend><div class="opts">${a.options.map(o =>
+      `<button type="button" class="opt" aria-pressed="false">${esc(o)}</button>`).join("")}</div>
+    <input aria-label="Or type your own answer" placeholder="Or type your own answer"></fieldset>`).join("")}
+    <button type="button" class="send">Answer my question</button></div>`;
+  card.querySelectorAll(".opts").forEach(g => g.onclick = e => {
+    const b = e.target.closest(".opt"); if (!b) return;
+    g.querySelectorAll(".opt").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  });
+  card.querySelector(".clarify .send").onclick = () => {
+    const lines = [...card.querySelectorAll("fieldset")].map(f => {
+      const typed = f.querySelector("input").value.trim();
+      const picked = f.querySelector('.opt[aria-pressed="true"]')?.textContent;
+      return typed || picked ? `- ${f.dataset.q} ${typed || picked}` : "";
+    }).filter(Boolean);
+    if (!lines.length) return card.querySelector(".opt").focus();
+    card.closest(".turn").remove();
+    $("#question").value = `${question}\n\nMy answers:\n${lines.join("\n")}`;
+    clarified = true; checkIn();
+  };
 }
 $("#go").onclick = checkIn;
 document.querySelectorAll(".chip").forEach(b => b.onclick = () => { $("#question").value = b.dataset.q; checkIn(); });
