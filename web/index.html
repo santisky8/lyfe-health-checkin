@@ -92,14 +92,13 @@ button,input,select,textarea{font:inherit;color:inherit}
 .label-box p{margin:0 0 8px;font-weight:600}
 .label-box textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
 .label-box button{margin-top:8px;background:var(--sun);color:#fff;border:0;border-radius:10px;padding:9px 16px;font-weight:600;cursor:pointer}
-.clarify p{margin:0 0 10px;font-weight:600}
-.clarify fieldset{border:0;margin:0 0 14px;padding:0}
-.clarify legend{font-weight:600;margin-bottom:8px;padding:0}
-.clarify .opts{display:flex;flex-wrap:wrap;gap:8px}
-.clarify .opt{border:1px solid var(--line);background:var(--surface);color:inherit;border-radius:999px;padding:7px 13px;cursor:pointer;font:inherit;font-size:.92rem;text-align:left}
-.clarify .opt[aria-pressed="true"]{background:var(--sun);border-color:var(--sun);color:#fff}
-.clarify input{margin-top:8px;width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--surface);color:inherit;font:inherit}
-.clarify .send{background:var(--sun);color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:600;cursor:pointer}
+.a{align-self:flex-start;max-width:85%;background:var(--surface);border:1px solid var(--line);border-radius:18px 18px 18px 4px;padding:14px 18px}
+.a p{margin:0;font-weight:600}
+.a .opts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.a .opt{border:1px solid var(--line);background:var(--bg);color:inherit;border-radius:999px;padding:7px 13px;cursor:pointer;font:inherit;font-size:.92rem;text-align:left}
+.a .opt:hover{border-color:var(--sun)}
+.newtopic{background:transparent;border:1px solid var(--line);color:inherit;border-radius:12px;padding:0 14px;font-weight:600;cursor:pointer}
+.newtopic[hidden]{display:none}
 .block.research h4{color:var(--zet)}
 .kind{font:500 .62rem var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:4px}
 .block svg{flex:none}
@@ -196,6 +195,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <div class="askrow">
         <textarea id="question" rows="1" placeholder="Describe it in your own words. For example: the soles of my feet feel like stinging needles"></textarea>
         <button class="go" id="go">Check in</button>
+        <button class="newtopic" id="newtopic" hidden>New topic</button>
       </div>
       <div class="chips">
         <button class="chip" data-q="The soles of my feet feel like stinging needles. What is it?">Soles feel like stinging needles</button>
@@ -348,108 +348,126 @@ function steps(list) {
 }
 
 // ---------- check-in ----------
-let clarified = false;  // true when the question already carries answers to Check-In's questions
+// ---------- conversation ----------
+// One conversation is one block in the feed. Check-In may ask a follow-up question first (tap
+// an option or reply in your own words), answers once it knows enough, and keeps the whole
+// conversation for follow-up questions until "New topic".
+const PLACEHOLDER = $("#question").placeholder;
+let convo = null;  // {el, turns: [{role, content, kind}]}
+
+function newTopic() {
+  convo = null;
+  $("#question").placeholder = PLACEHOLDER; $("#go").textContent = "Check in"; $("#newtopic").hidden = true;
+}
+
+function replyMode(placeholder, button) {
+  $("#question").placeholder = placeholder; $("#go").textContent = button; $("#newtopic").hidden = false;
+}
+
 async function checkIn() {
-  const question = $("#question").value.trim(); if (!question) return $("#question").focus();
-  const answered = clarified; clarified = false;
+  const text = $("#question").value.trim(); if (!text) return $("#question").focus();
   const user = $("#user").value, as_of = $("#asof").value;
-  $("#go").disabled = true; $(".intro")?.remove();
-  const turn = document.createElement("div"); turn.className = "turn";
-  turn.innerHTML = `<div class="q">${esc(question)}</div><div class="card"><p class="waiting">Looking at your week…</p></div>`;
-  $("#thread").prepend(turn);
-  const card = turn.querySelector(".card");
+  $("#question").value = ""; $("#go").disabled = true; $(".intro")?.remove();
+  if (!convo) {
+    const el = document.createElement("div"); el.className = "turn";
+    $("#thread").prepend(el); convo = {el, turns: []};
+  }
+  const c = convo;
+  c.el.querySelectorAll(".a .opts").forEach(o => o.remove());  // earlier options are spent
+  c.el.insertAdjacentHTML("beforeend", `<div class="q">${esc(text)}</div>`);
+  c.turns.push({role: "user", content: text});
+  const card = document.createElement("div"); card.className = "card";
+  card.innerHTML = `<p class="waiting">Thinking about what you said…</p>`;
+  c.el.append(card);
   steps([{state:"run", by:"Safety", title:"Checking for danger signs", detail:"Before anything else"}]);
   try {
-    const prep = await api("/api/prepare", {question, user, as_of, clarified: answered});
-    if (prep.clarify) return askFirst(card, question, prep.clarify);
+    const prep = await api("/api/turn", {turns: c.turns, user, as_of});
     if (prep.urgent) {
       steps([{state:"stop", by:"Safety", title:"Danger sign found", detail:"Advice skipped. Emergency help shown. Logged to the journal."}]);
       card.outerHTML = `<div class="urgent"><h3>Please get help now</h3><p>${esc(prep.urgent)}</p></div>`;
+      newTopic();
       return refreshJournal();
     }
     if (prep.error) throw new Error(prep.error);
-    const s = prep.summary, nSrc = prep.sources.length, tm = prep.timings || {};
-    const lib = prep.sources.filter(x => x.kind !== "research"), papers = prep.sources.filter(x => x.kind === "research");
-    const base = [
-      {state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
-      {state:"done", by:"Nightshift", title:`${prep.hypotheses.length} possible causes to check`, detail:`${esc(prep.hypotheses.join(" · ") || "none")}${(prep.remedies || []).length ? `<br>Remedies asked about: ${esc(prep.remedies.join(" · "))}` : ""}<br>${tm.hypotheses ?? "?"} s · search terms, not a diagnosis`},
-      {state:"done", by:"Zetaris", title:`${lib.length} library section${lib.length === 1 ? "" : "s"}${s ? " + your log" : ""}`, detail:`${esc(lib.map(x => x.title).join(" · ") || "No close library match")}<br><span style="font-size:.8rem">MedlinePlus topics and NCCIH herb and supplement pages</span>${s ? `<br>Your log for ${fmt(s.from)} to ${fmt(s.to)}` : ""}`,
-       more:`<details><summary>See the SQL</summary>${prep.sql.map(q => `<pre>${esc(q)}</pre>`).join("")}</details>`},
-      {state:"done", by:"PubMed", title:`${papers.length} review${papers.length === 1 ? "" : "s"} found live`, detail: papers.map(p => esc(p.about || "") + ": " + esc(p.title.slice(0, 60)) + "…").join("<br>") || "No reviews found"},
-      {state:"done", by:"Meterless H-MEM", title: prep.past.length ? `${prep.past.length} past check-in${prep.past.length > 1 ? "s" : ""} recalled` : "First check-in on this", detail: prep.past.length ? prep.past.map(m => esc(m.content.replace(/^Check-in: |^User reported: /, "").slice(0, 80)) + "…").join("<br>") : "Nothing to follow up on yet"},
-    ];
-    const t0 = Date.now();
-    steps([...base, {state:"run", by:"Nightshift", title:"Writing your answer", detail:'<span id="tick">0 s</span> · Meterless Nightshift, NVIDIA Nemotron'}]);
-    const tick = setInterval(() => { const el = $("#tick"); if (el) el.textContent = Math.round((Date.now() - t0) / 1000) + " s"; }, 1000);
-    const foot = `<div class="foot"><strong>Sources</strong><ol>${prep.sources.map((x, i) => `<li data-n="${i + 1}"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a> <span class="from">· ${esc(x.source)}</span></li>`).join("")}</ol></div>`;
-    card.innerHTML = `<p class="waiting">I'm weighing ${prep.hypotheses.length} possible causes against ${nSrc} sources${s ? ", your own numbers" : ""}${prep.past.length ? " and what you told me before" : ""}. Writing…</p>`;
-
-    const r = await fetch("/api/stream", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({id: prep.id})});
-    const reader = r.body.getReader(), dec = new TextDecoder();
-    let buf = "", text = "", done = null;
-    while (true) {
-      const {value, done: end} = await reader.read(); if (end) break;
-      buf += dec.decode(value, {stream: true});
-      let i; while ((i = buf.indexOf("\n\n")) >= 0) {
-        const line = buf.slice(0, i).replace(/^data: /, ""); buf = buf.slice(i + 2);
-        const msg = JSON.parse(line);
-        if (msg.error) throw new Error(msg.error);
-        if (msg.delta) { text += msg.delta; card.innerHTML = render(text) + '<span class="writing"></span>'; }
-        if (msg.done) done = msg.done;
-      }
-    }
-    clearInterval(tick);
-    if (!done) throw new Error("the model stopped before finishing");
-    steps([...base,
-      {state:"done", by:"Nightshift", title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites a source, your log or a memory"},
-      {state:"done", by:"Meterless H-MEM", title:`Saved as ${esc(done.saved.id)}`, detail:"Next week's check-in will follow up on this"}]);
-    card.innerHTML = render(done.text) + foot +
-      ((prep.brands || []).length ? `<div class="label-box"><p>Check-In doesn't know what's in ${esc(prep.brands.join(" or "))}. Paste the ingredient list from the label and ask again.</p><textarea aria-label="Ingredient list" placeholder="For example: L-glutamine 5,000 mg, aloe vera 200 mg, slippery elm 100 mg, probiotics 10 billion CFU"></textarea><button>Ask again with these ingredients</button></div>` : "") +
-      `<div class="note"><input placeholder="Later this week: what did you try, and how did it go?" aria-label="What you tried"><button>Save to journal</button></div><p class="legal">${esc(done.disclaimer)}</p>`;
-    const box = card.querySelector(".label-box");
-    if (box) box.querySelector("button").onclick = () => {
-      const ing = box.querySelector("textarea").value.trim(); if (!ing) return box.querySelector("textarea").focus();
-      $("#question").value = `${question}\n\nIngredients on the label of ${prep.brands.join(", ")}: ${ing}`;
-      clarified = true; checkIn();
-    };
-    card.querySelector(".note button").onclick = async ev => {
-      const inp = card.querySelector(".note input"); if (!inp.value.trim()) return inp.focus();
-      await api("/api/note", {user, text: inp.value});
-      ev.target.textContent = "Saved"; ev.target.disabled = inp.disabled = true; refreshJournal();
-    };
-    refreshJournal();
+    if (prep.ask) return askBack(c, card, prep.ask);
+    const said = await answer(card, prep, user);
+    c.turns.push({role: "assistant", kind: "answer", content: said});
+    replyMode("Ask a follow-up, or tap New topic", "Send");
   } catch (e) {
     card.innerHTML = `<p class="waiting">Something went wrong: ${esc(e.message)}</p>`;
-  } finally { $("#go").disabled = false; }
+  } finally { $("#go").disabled = false; $("#question").focus(); }
 }
-// Check-In asks before answering when the answer depends on a detail the question leaves
-// out, such as whether arnica is swallowed as a supplement or rubbed on as a gel.
-function askFirst(card, question, asks) {
+
+// Check-In asks when the safe answer depends on a detail nobody gave yet, such as whether
+// arnica is swallowed as a supplement or rubbed on as a gel.
+function askBack(c, card, ask) {
   steps([{state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
-         {state:"run", by:"Nightshift", title:"A few questions first", detail:"The safe answer depends on these details"}]);
-  card.innerHTML = `<div class="clarify"><p>Before I answer, a few quick questions:</p>${asks.map((a, i) => `
-    <fieldset data-q="${esc(a.q)}"><legend>${esc(a.q)}</legend><div class="opts">${a.options.map(o =>
-      `<button type="button" class="opt" aria-pressed="false">${esc(o)}</button>`).join("")}</div>
-    <input aria-label="Or type your own answer" placeholder="Or type your own answer"></fieldset>`).join("")}
-    <button type="button" class="send">Answer my question</button></div>`;
-  card.querySelectorAll(".opts").forEach(g => g.onclick = e => {
-    const b = e.target.closest(".opt"); if (!b) return;
-    g.querySelectorAll(".opt").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-  });
-  card.querySelector(".clarify .send").onclick = () => {
-    const lines = [...card.querySelectorAll("fieldset")].map(f => {
-      const typed = f.querySelector("input").value.trim();
-      const picked = f.querySelector('.opt[aria-pressed="true"]')?.textContent;
-      return typed || picked ? `- ${f.dataset.q} ${typed || picked}` : "";
-    }).filter(Boolean);
-    if (!lines.length) return card.querySelector(".opt").focus();
-    card.closest(".turn").remove();
-    $("#question").value = `${question}\n\nMy answers:\n${lines.join("\n")}`;
-    clarified = true; checkIn();
+         {state:"done", by:"Nightshift", title:"Asked you a question", detail:"The safe answer depends on this detail"}]);
+  card.className = "a";
+  card.innerHTML = `<p>${esc(ask.q)}</p><div class="opts">${ask.options.map(o =>
+    `<button type="button" class="opt">${esc(o)}</button>`).join("")}</div>`;
+  card.querySelectorAll(".opt").forEach(b => b.onclick = () => { $("#question").value = b.textContent; checkIn(); });
+  c.turns.push({role: "assistant", kind: "ask", content: ask.q});
+  replyMode("Tap an answer, or reply in your own words", "Reply");
+}
+
+// Evidence first, then the answer streamed as the model writes it. Returns the final text.
+async function answer(card, prep, user) {
+  const s = prep.summary, nSrc = prep.sources.length, tm = prep.timings || {};
+  const lib = prep.sources.filter(x => x.kind !== "research"), papers = prep.sources.filter(x => x.kind === "research");
+  const base = [
+    {state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
+    {state:"done", by:"Nightshift", title:`${prep.hypotheses.length} possible causes to check`, detail:`${esc(prep.hypotheses.join(" · ") || "none")}${(prep.remedies || []).length ? `<br>Remedies asked about: ${esc(prep.remedies.join(" · "))}` : ""}<br>${tm.hypotheses ?? "?"} s · search terms, not a diagnosis`},
+    {state:"done", by:"Zetaris", title:`${lib.length} library section${lib.length === 1 ? "" : "s"}${s ? " + your log" : ""}`, detail:`${esc(lib.map(x => x.title).join(" · ") || "No close library match")}<br><span style="font-size:.8rem">MedlinePlus topics and NCCIH herb and supplement pages</span>${s ? `<br>Your log for ${fmt(s.from)} to ${fmt(s.to)}` : ""}`,
+     more:`<details><summary>See the SQL</summary>${prep.sql.map(q => `<pre>${esc(q)}</pre>`).join("")}</details>`},
+    {state:"done", by:"PubMed", title:`${papers.length} review${papers.length === 1 ? "" : "s"} found live`, detail: papers.map(p => esc(p.about || "") + ": " + esc(p.title.slice(0, 60)) + "…").join("<br>") || "No reviews found"},
+    {state:"done", by:"Meterless H-MEM", title: prep.past.length ? `${prep.past.length} past check-in${prep.past.length > 1 ? "s" : ""} recalled` : "First check-in on this", detail: prep.past.length ? prep.past.map(m => esc(m.content.replace(/^Check-in: |^User reported: /, "").slice(0, 80)) + "…").join("<br>") : "Nothing to follow up on yet"},
+  ];
+  const t0 = Date.now();
+  steps([...base, {state:"run", by:"Nightshift", title:"Writing your answer", detail:'<span id="tick">0 s</span> · Meterless Nightshift, NVIDIA Nemotron'}]);
+  const tick = setInterval(() => { const el = $("#tick"); if (el) el.textContent = Math.round((Date.now() - t0) / 1000) + " s"; }, 1000);
+  const foot = `<div class="foot"><strong>Sources</strong><ol>${prep.sources.map((x, i) => `<li data-n="${i + 1}"><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a> <span class="from">· ${esc(x.source)}</span></li>`).join("")}</ol></div>`;
+  card.innerHTML = `<p class="waiting">I'm weighing ${prep.hypotheses.length} possible causes against ${nSrc} sources${s ? ", your own numbers" : ""}${prep.past.length ? " and what you told me before" : ""}. Writing…</p>`;
+
+  const r = await fetch("/api/stream", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({id: prep.id})});
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = "", text = "", done = null;
+  while (true) {
+    const {value, done: end} = await reader.read(); if (end) break;
+    buf += dec.decode(value, {stream: true});
+    let i; while ((i = buf.indexOf("\n\n")) >= 0) {
+      const line = buf.slice(0, i).replace(/^data: /, ""); buf = buf.slice(i + 2);
+      const msg = JSON.parse(line);
+      if (msg.error) throw new Error(msg.error);
+      if (msg.delta) { text += msg.delta; card.innerHTML = render(text) + '<span class="writing"></span>'; }
+      if (msg.done) done = msg.done;
+    }
+  }
+  clearInterval(tick);
+  if (!done) throw new Error("the model stopped before finishing");
+  steps([...base,
+    {state:"done", by:"Nightshift", title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites a source, your log or a memory"},
+    {state:"done", by:"Meterless H-MEM", title:`Saved as ${esc(done.saved.id)}`, detail:"Next week's check-in will follow up on this"}]);
+  card.innerHTML = render(done.text) + foot +
+    ((prep.brands || []).length ? `<div class="label-box"><p>Check-In doesn't know what's in ${esc(prep.brands.join(" or "))}. Paste the ingredient list from the label and ask again.</p><textarea aria-label="Ingredient list" placeholder="For example: L-glutamine 5,000 mg, aloe vera 200 mg, slippery elm 100 mg, probiotics 10 billion CFU"></textarea><button>Ask again with these ingredients</button></div>` : "") +
+    `<div class="note"><input placeholder="Later this week: what did you try, and how did it go?" aria-label="What you tried"><button>Save to journal</button></div><p class="legal">${esc(done.disclaimer)}</p>`;
+  const box = card.querySelector(".label-box");
+  if (box) box.querySelector("button").onclick = () => {
+    const ing = box.querySelector("textarea").value.trim(); if (!ing) return box.querySelector("textarea").focus();
+    $("#question").value = `Ingredients on the label of ${prep.brands.join(", ")}: ${ing}`;
+    checkIn();
   };
+  card.querySelector(".note button").onclick = async ev => {
+    const inp = card.querySelector(".note input"); if (!inp.value.trim()) return inp.focus();
+    await api("/api/note", {user, text: inp.value});
+    ev.target.textContent = "Saved"; ev.target.disabled = inp.disabled = true; refreshJournal();
+  };
+  refreshJournal();
+  return done.text;
 }
 $("#go").onclick = checkIn;
-document.querySelectorAll(".chip").forEach(b => b.onclick = () => { $("#question").value = b.dataset.q; checkIn(); });
+document.querySelectorAll(".chip").forEach(b => b.onclick = () => { newTopic(); $("#question").value = b.dataset.q; checkIn(); });
+$("#newtopic").onclick = () => { newTopic(); $("#question").focus(); };
 $("#question").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); checkIn(); } });
 loadUsers().then(refresh).catch(e => $("#range").textContent = `Could not load data (${e.message}). Is Zetaris running?`);
 </script>

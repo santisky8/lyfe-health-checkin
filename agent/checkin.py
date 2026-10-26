@@ -63,7 +63,9 @@ this part with one question that would help.
 **What you can do now**
 Specific, safe steps for the everyday causes: how, how often, for how long. Basic safe
 amounts only; never high doses of any supplement. Never recommend a medicine, injection or
-procedure; at most say it is something a doctor may discuss.
+procedure; at most say it is something a doctor may discuss. If they ask about a medicine
+they already take, say what the evidence says about its safety or interactions and to follow
+the label or their pharmacist; never give it a dose or suggest it as treatment.
 **What the research says**
 One to three short facts from the PubMed reviews, NCCIH or the library, each cited. Treatments
 that need a doctor are named only as options to ask a doctor about.
@@ -158,7 +160,15 @@ def messages(prep):
     summary = prep["summary"]
     numbers = (f"User's own data (last {summary['days']} days):\n{json.dumps(summary, indent=1)}"
                if summary else "User's own data: not relevant to this question.")
-    user = (f"Question: {prep['question']}\n\nCandidate causes to weigh: "
+    convo = prep.get("conversation") or []
+    follow = ("This is a follow-up in an ongoing conversation:\n"
+              f"{clarify.transcript(convo, answer_chars=1500)}\n\n"
+              "Answer the person's latest message directly. Don't repeat what the earlier "
+              "answer already said; refer back to it in a phrase. Use only the headings that "
+              "matter for this follow-up, but keep **See a doctor if** whenever there is any "
+              "risk. Under 220 words.\n\n"
+              if any(t.get("kind") == "answer" for t in convo) else "")
+    user = (follow + f"Question: {prep['question']}\n\nCandidate causes to weigh: "
             f"{', '.join(prep['hypotheses']) or 'none'}\nRemedies or products asked about: "
             f"{', '.join(prep.get('remedies', [])) or 'none'}\n"
             + (f"Branded products whose ingredients you do NOT know: {', '.join(prep['brands'])}. "
@@ -327,6 +337,27 @@ def prepare(question, user_id, as_of=None, clarified=False):
     }
 
 
+def turn(turns, user_id, as_of=None):
+    """One step of a conversation. `turns` is the whole conversation so far, newest last:
+    {"role": "user" | "assistant", "content": ..., "kind": "ask" | "answer"}. Returns a
+    follow-up question ({"ask": {...}}), the emergency message, or the prepared evidence for
+    an answer (the page then streams it with /api/stream)."""
+    latest = turns[-1]["content"]
+    urgent = safety.check(latest)
+    if urgent:
+        memory.remember(user_id, f"Danger sign reported: \"{latest}\". Sent to emergency help.",
+                        source="safety_filter", tags=["danger"], confidence=1.0)
+        return {"urgent": urgent}
+    t0 = time.time()
+    ask = clarify.next_step(turns)
+    if ask:
+        return {"ask": ask, "timings": {"clarify": round(time.time() - t0, 1)}}
+    prep = prepare(clarify.case_text(turns), user_id, as_of, clarified=True)
+    prep["conversation"] = turns
+    prep.setdefault("timings", {})["clarify"] = round(time.time() - t0, 1)
+    return prep
+
+
 def latest_per_question(past):
     """Keep only the newest check-in for each question asked, so asking the same thing three
     times does not fill the memory slots with copies of one old answer."""
@@ -348,7 +379,7 @@ def check_citations(text, n_sources, n_past):
         ok = [r for r in refs if r == "log"
               or (r.isdigit() and 1 <= int(r) <= n_sources)
               or (re.fullmatch(r"m\d+", r) and 1 <= int(r[1:]) <= n_past)]
-        return f"[{', '.join(ok)}]" if ok else ""
+        return "".join(f"[{r}]" for r in ok)  # [m3][5], never "[m3, 5]"
     if not n_sources:  # a model-made reference list with no sources behind it
         text = re.sub(r"\n\s*\[\d+\][^\n]*", "", text)
     text = re.sub(r"\[((?:\d+|log|m\d+)(?:\s*,\s*(?:\d+|log|m\d+))*)\]", keep, text)

@@ -76,6 +76,15 @@ class Handler(BaseHTTPRequestHandler):
                 with _lock:
                     _prepared[prep["id"]] = prep
                 return self._send(200, prep)
+            if self.path == "/api/turn":
+                turns = [{"role": x["role"], "content": str(x["content"])[:4000],
+                          "kind": x.get("kind")} for x in body["turns"][-16:]]
+                prep = checkin.turn(turns, body["user"], body.get("as_of") or None)
+                if prep.get("urgent") is None and "sources" in prep:
+                    prep["id"] = str(uuid.uuid4())
+                    with _lock:
+                        _prepared[prep["id"]] = prep
+                return self._send(200, prep)
             if self.path == "/api/respond":
                 with _lock:
                     prep = _prepared.pop(body["id"])

@@ -75,13 +75,19 @@ def search(question, top_n=4):
     return rows
 
 
+def _stem(phrase):
+    """Rough word roots, so "bruising" meets "Bruises" and "trauma" does not meet "traumatic"."""
+    import re
+    return " ".join(re.sub(r"(ing|es|s)$", "", w) for w in re.findall(r"[a-z0-9]+", phrase.lower()))
+
+
 def by_name(names):
     """Topics whose title or "also called" names match a condition name, read through Zetaris.
-    Exact names beat partial ones: "Atopic dermatitis" finds Eczema (also called Atopic
-    Dermatitis), not every page that mentions dermatitis. One topic per name."""
+    "Atopic dermatitis" finds Eczema (also called Atopic Dermatitis). Whole words only, so
+    "trauma" does not find Post-Traumatic Stress Disorder. One topic per name."""
     found, seen = [], set()
     for name in names:
-        n = name.lower().strip()
+        n = _stem(name)
         if len(n) < 4:
             continue
         rows = store.query(
@@ -90,9 +96,11 @@ def by_name(names):
             f"WHERE lower(title) LIKE ? OR lower(also_called) LIKE ?", (f"%{n}%", f"%{n}%"))
 
         def rank(r):
-            aliases = [a.strip().lower() for a in r["also_called"].split(";")]
-            return 2 if n in (r["title"].lower(), *aliases) else 1 if n in r["title"].lower() else 0
-        rows = [r for r in rows if r["doc_id"] not in seen]
+            names_ = [_stem(r["title"])] + [_stem(a) for a in r["also_called"].split(";")]
+            if n in names_:
+                return 2
+            return 1 if f" {n} " in f" {names_[0]} " else 0
+        rows = [r for r in rows if r["doc_id"] not in seen and rank(r) > 0]
         if rows:
             best = max(rows, key=rank)
             seen.add(best["doc_id"])
