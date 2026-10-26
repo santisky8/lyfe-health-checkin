@@ -101,7 +101,10 @@ General health information, not medical advice.
 - `site/`: one static page (problem, how it works, sponsor tech, screenshots, video). Deployed
   to Netlify. It checks `<demo>/api/status` every minute and only enables the "Try the live
   demo" button while the demo answers.
-- `./demo_on.sh`: starts a public-mode copy of the app on port 8766 (`PUBLIC=1`: each visitor
-  gets their own H-MEM memory through a cookie, and errors show no details) and publishes it
-  with Tailscale Funnel. Needs Zetaris and the Nightshift laptop running.
-- `./demo_off.sh`: closes the Funnel and stops the public copy.
+- `demo_service.sh`: run at login by the systemd user service `lyfe-checkin-demo`. It starts
+  Docker Desktop, waits for Zetaris, then runs a public-mode copy of the app on port 8766
+  (`PUBLIC=1`: each visitor gets their own H-MEM memory through a cookie, and errors show no
+  details). After the judging window it disables itself.
+- `./demo_on.sh`: starts that service and publishes port 8766 with Tailscale Funnel (the
+  Funnel setting survives reboots). Needs the Nightshift laptop running.
+- `./demo_off.sh`: closes the Funnel and stops the service.
