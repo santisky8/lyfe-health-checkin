@@ -2,6 +2,7 @@
 
 Every memory carries its source, confidence and time it was learned, and every change goes
 to an append-only ledger, so the agent can show why it remembers something."""
+import contextvars
 import json
 import os
 import shutil
@@ -13,9 +14,14 @@ CLI = ROOT / "meterless" / "hmem_cli.ts"
 # Node 22.7+ runs the TypeScript engine directly. VSCodium's Flatpak node is the fallback here.
 NODE = os.environ.get("NODE_BIN") or shutil.which("node") or str(
     Path.home() / ".var/app/com.vscodium.codium/data/node/bin/node")
+# Public demo: each visitor gets their own memory beside the demo person's, so strangers never
+# see or change each other's check-ins. Set per request by server.py; empty for local use.
+visitor = contextvars.ContextVar("visitor", default="")
 
 
 def _call(request):
+    if visitor.get():
+        request = {**request, "user": f"{request['user']}-v{visitor.get()}"}
     r = subprocess.run([NODE, "--no-warnings", "--experimental-transform-types", str(CLI)],
                        input=json.dumps(request), capture_output=True, text=True, timeout=60)
     if r.returncode != 0:

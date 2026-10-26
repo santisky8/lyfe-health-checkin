@@ -83,6 +83,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .block{border-radius:14px;padding:16px 18px;margin-top:14px}
 .block h4{font:600 1rem var(--display);margin:0 0 6px;display:flex;align-items:center;gap:8px}
 .block p{margin:0 0 .5em}.block p:last-child{margin:0}
+.block ul,.block ol,.lead ul,.lead ol{margin:0 0 .5em;padding-left:1.3em}.block li,.lead li{margin:.25em 0}.block ul:last-child,.block ol:last-child{margin-bottom:0}
 .block.try{background:var(--sun-soft)}.block.try h4{color:var(--sun-ink)}
 .block.doctor{background:var(--warn-soft)}.block.doctor h4{color:var(--warn)}
 .block.plain,.block.research{background:var(--code)}
@@ -317,14 +318,32 @@ const ICON = {
 };
 function inline(s) {
   let h = esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  h = h.replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, "$1<em>$2</em>");
   h = h.replace(/\[(log|checks)\]/g, '<button class="cite log" data-go="week" title="From your own log">your log</button>');
   h = h.replace(/\[m(\d+)\]/g, '<button class="cite mem" data-go="journal" title="From a past check-in">memory $1</button>');
   return h.replace(/\[(\d+)\]/g, '<button class="cite" data-src="$1" title="Source $1">$1</button>');
 }
-const paras = s => s.trim() ? s.trim().split(/\n\s*\n/).map(p => "<p>" + inline(p.trim()).replace(/\n/g, "<br>") + "</p>").join("") : "";
+// Lines starting "- ", "* " or "1. " become lists; other lines stay a paragraph.
+function lines(p) {
+  let html = "", list = null, text = [];
+  const flush = () => { if (text.length) html += "<p>" + text.join("<br>") + "</p>"; text = []; };
+  const close = () => { if (list) html += `</${list}>`; list = null; };
+  for (const line of p.split("\n")) {
+    const m = line.match(/^\s*(?:([-*•])|(\d+)[.)])\s+(.*)$/);
+    if (!m) { close(); text.push(inline(line.trim())); continue; }
+    const kind = m[1] ? "ul" : "ol";
+    flush();
+    if (list !== kind) { close(); html += `<${kind}>`; list = kind; }
+    html += `<li>${inline(m[3])}</li>`;
+  }
+  close(); flush();
+  return html;
+}
+const paras = s => s.trim() ? s.trim().split(/\n\s*\n/).map(p => lines(p.trim())).join("") : "";
 function render(text) {
-  // Split on bold headings such as **Try this week**: and **See a doctor if**:
-  const parts = text.split(/\*\*([^*\n]{3,40}?):?\*\*:?/);
+  // Split on bold headings that start a line, such as **Try this week**: and **See a doctor if**:
+  // Bold words inside a line ("1. **Sleep deprivation** – ...") stay in their list item.
+  const parts = text.split(/^[ \t]*(?:#{1,4}[ \t]*)?\*\*([^*\n]{3,40}?):?\*\*:?/m);
   let html = `<div class="lead">${paras(parts[0])}</div>`;
   for (let i = 1; i < parts.length; i += 2) {
     const title = parts[i].trim(), body = parts[i + 1] || "";

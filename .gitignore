@@ -4,3 +4,5 @@ __pycache__/
 .env*
 data/memory/
 data/clean/library_index.json
+data/demo.log
+data/demo.pid

@@ -95,3 +95,13 @@ All code in this repository was written during the build window (from 22 Oct 202
 ## Disclaimer
 
 General health information, not medical advice.
+
+## Showcase site and live demo
+
+- `site/`: one static page (problem, how it works, sponsor tech, screenshots, video). Deployed
+  to Netlify. It checks `<demo>/api/status` every minute and only enables the "Try the live
+  demo" button while the demo answers.
+- `./demo_on.sh`: starts a public-mode copy of the app on port 8766 (`PUBLIC=1`: each visitor
+  gets their own H-MEM memory through a cookie, and errors show no details) and publishes it
+  with Tailscale Funnel. Needs Zetaris and the Nightshift laptop running.
+- `./demo_off.sh`: closes the Funnel and stops the public copy.
