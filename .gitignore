@@ -6,3 +6,6 @@ data/memory/
 data/clean/library_index.json
 data/demo.log
 data/demo.pid
+
+# Local Netlify folder
+.netlify
