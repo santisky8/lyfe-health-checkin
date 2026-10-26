@@ -34,7 +34,8 @@ model.
    SQLite copy is the offline fallback.
 5. **Live research** (`agent/research.py`): PubMed is searched at question time for a recent
    systematic review (or review) on each possible cause, or, for a remedy question, on the
-   remedy for the person's conditions. Case reports are never used.
+   remedy for the person's conditions. Case reports are never used. PubMed and the H-MEM
+   recall run in the background while the Zetaris queries run, which saves several seconds.
 6. **Memory with provenance through Meterless H-MEM** (`agent/memory.py`, `meterless/`):
    before answering, past check-ins and reported outcomes are recalled with H-MEM and
    re-ranked by meaning; after answering, the check-in (question, causes considered,
@@ -45,6 +46,9 @@ model.
    so the question and its evidence go to NVIDIA to be answered. The user's raw log stays
    local: only the weekly summary is sent. Any OpenAI-compatible endpoint works, including a
    local Ollama for a fully private mode. The answer streams to the page as it is written.
+   If Nightshift doesn't answer within 2 seconds and `NVIDIA_API_KEY` is set, the same Nemotron
+   models are called on NVIDIA's own cloud instead, and "Show your work" says which one wrote
+   the answer.
 8. **Only on-topic sources** (`checkin.on_topic`): every source is scored against the question
    by meaning; sources far behind the best match are dropped, and PubMed case reports are
    never used.
@@ -124,5 +128,6 @@ General health information, not medical advice.
   (`PUBLIC=1`: each visitor gets their own H-MEM memory through a cookie, and errors show no
   details). After the judging window it disables itself.
 - `./demo_on.sh`: starts that service and publishes port 8766 with Tailscale Funnel (the
-  Funnel setting survives reboots). Needs the Nightshift laptop running.
+  Funnel setting survives reboots). Needs the Nightshift laptop running, or `NVIDIA_API_KEY`
+  in `.env.local` as the backup.
 - `./demo_off.sh`: closes the Funnel and stops the service.

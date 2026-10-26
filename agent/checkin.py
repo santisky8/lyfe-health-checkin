@@ -13,10 +13,12 @@ Usage:
   python3 agent/checkin.py --user 1503960366 --note "Went to bed 30 min earlier, less tired"
 """
 import argparse
+import contextvars
 import json
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import clarify
 import hypotheses
@@ -282,6 +284,17 @@ def remedy_facts(name, limit=3):
              "source": r["source"]} for r in keep[:limit]]
 
 
+def find_reviews(terms, context):
+    """PubMed reviews for these terms, or None when PubMed fails twice (slow or rate-limited)."""
+    for attempt in range(2):
+        try:
+            return research.reviews(terms, top_n=2, context=context)
+        except Exception:
+            if attempt == 0:
+                time.sleep(1.5)
+    return None
+
+
 def prepare(question, user_id, as_of=None, clarified=False, said=None):
     """Everything the answer is built from, gathered before it is written: the safety check,
     candidate causes, library topics and the user's numbers through Zetaris, live PubMed
@@ -314,12 +327,29 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None):
             decisions.append(f"Skipped remedy {r}: the person didn't name it")
     brands = [] if "ingredients on the label" in question.lower() else found_terms.get("brands", [])
     timings["hypotheses"] = round(time.time() - t0, 1)
+    # PubMed and H-MEM are slow network calls that need nothing from Zetaris, so they run in
+    # the background while the Zetaris queries run here (here, so their SQL is logged).
+    t0 = time.time()
+    pool = ThreadPoolExecutor(max_workers=2)
+    generic = [r for r in remedies if r not in brands]  # PubMed knows ginger, not Gut FX
+    # A remedy is searched for these conditions only: on its own, "honey" finds honey for
+    # diabetic foot ulcers. With a remedy, the person's condition matters as it meets the
+    # remedy ("antidepressants" with diabetes); without one, one review per candidate cause.
+    wanted = [([name], name, hyps or None) for name in generic[:2]]
+    wanted += ([([hyps[0]], hyps[0], generic[0])] if generic and hyps
+               else [([h], h, None) for h in hyps[:3]])
+    # One after another: PubMed allows 3 requests a second without a key.
+    reviews = pool.submit(lambda: [(about, find_reviews(terms, context))
+                                   for terms, about, context in wanted])
+    # copy_context: the public demo's visitor id lives in a context variable, and without it
+    # recall would read the shared demo memory instead of this visitor's own.
+    recall = pool.submit(contextvars.copy_context().run, memory.relevant, user_id, question, 8)
+    pool.shutdown(wait=False)
     topics = topics_for(question)
     summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
     decisions.append("Used your sleep and activity log: the question is about what it measures"
                      if summary else "Left your log out: the question isn't about sleep, "
                      "activity or weight")
-    t0 = time.time()
     # Exact condition names first; meaning-based search only fills the gaps, because on its
     # own it can rank Diphtheria above Eczema for "red, dry skin in the folds of my arms".
     found = library.by_name(hyps)[:3]
@@ -340,52 +370,28 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None):
                 rows = []
         remedy_rows += [dict(r, kind="remedy", about=name) for r in rows]
     timings["zetaris"] = round(time.time() - t0, 1)
-    t0 = time.time()
     papers, seen = [], set()
-
-    def add_review(terms, about, context=None):
-        """First new review for these terms; PubMed hiccups skip one term, not all of them."""
-        for attempt in range(2):
-            try:
-                reviews = research.reviews(terms, top_n=2, context=context)
-                break
-            except Exception:  # PubMed slow or rate-limited: wait once, then give up on it
-                if attempt == 0:
-                    time.sleep(1.5)
-        else:
+    for about, found_reviews in reviews.result():  # first new review per search, in order
+        if found_reviews is None:
             decisions.append(f"PubMed didn't answer for {about}; went on without it")
-            return False
-        for p in reviews:
+            continue
+        for p in found_reviews:
             if p["url"] not in seen:
                 seen.add(p["url"])
                 papers.append(dict(p, kind="research", about=about))
-                return True
-        return False
-
-    generic = [r for r in remedies if r not in brands]  # PubMed knows ginger, not Gut FX
-    for name in generic[:2]:
-        # The remedy for these conditions only: on its own, "honey" finds honey for diabetic
-        # foot ulcers, which says nothing about a sore throat.
-        if hyps:
-            add_review([name], name, context=hyps)
-        else:
-            add_review([name], name)
-    if generic and hyps:
-        # A remedy question: the person's own conditions matter as they meet the remedy
-        # ("antidepressants" with diabetes), not on their own ("heart failure in diabetes").
-        add_review([hyps[0]], hyps[0], context=generic[0])
-    else:
-        for h in hyps[:3]:  # one review per candidate cause
-            add_review([h], h)
+                break
+    past = latest_per_question(recall.result())[:3]
     timings["pubmed"] = round(time.time() - t0, 1)
-    past = latest_per_question(memory.relevant(user_id, question, top_n=8))[:3]
+    via = llm.via()
+    if via != "Meterless Nightshift":
+        decisions.append(f"Answer written by {via}")
     sources = on_topic(question, remedy_rows + library_rows + guide_rows[:2] + papers, decisions)
     return {
         "question": question, "user": user_id, "urgent": None, "summary": summary,
         "hypotheses": hyps, "remedies": remedies, "brands": brands,
         "topics": topics or [h.lower() for h in hyps[:2]],
         "sources": sources, "past": past, "decisions": decisions,
-        "sql": list(sql), "backend": store.backend(), "timings": timings,
+        "sql": list(sql), "backend": store.backend(), "timings": timings, "via": via,
     }
 
 

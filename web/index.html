@@ -375,7 +375,7 @@ document.addEventListener("click", e => {
 });
 
 function steps(list) {
-  const by = {Safety:"", Zetaris:"z", "Meterless H-MEM":"m", "Nightshift":"l", PubMed:"p"};
+  const by = {Safety:"", Zetaris:"z", "Meterless H-MEM":"m", "Nightshift":"l", NVIDIA:"l", PubMed:"p"};
   $("#steps").innerHTML = list.map(s => `<li class="step ${s.state}"><span class="dot"></span><div><span class="by ${by[s.by] ?? ""}">${esc(s.by)}</span><b>${esc(s.title)}</b><small>${s.detail}</small>${s.more || ""}</div></li>`).join("");
 }
 
@@ -481,8 +481,9 @@ async function answer(card, prep, user) {
     {state:"done", by:"PubMed", title:`${papers.length} review${papers.length === 1 ? "" : "s"} found live`, detail: papers.map(p => esc(p.about || "") + ": " + esc(p.title.slice(0, 60)) + "…").join("<br>") || "No reviews found"},
     {state:"done", by:"Meterless H-MEM", title: prep.past.length ? `${prep.past.length} past check-in${prep.past.length > 1 ? "s" : ""} recalled` : "First check-in on this", detail: prep.past.length ? prep.past.map(m => esc(m.content.replace(/^Check-in: |^User reported: /, "").slice(0, 80)) + "…").join("<br>") : "Nothing to follow up on yet"},
   ];
-  const t0 = Date.now();
-  steps([...base, {state:"run", by:"Nightshift", title:"Writing your answer", detail:'<span id="tick">0 s</span> · Meterless Nightshift, NVIDIA Nemotron'}]);
+  // The NVIDIA cloud writes the answer only when Nightshift is offline (see agent/llm.py).
+  const writer = /^NVIDIA/.test(prep.via || "") ? "NVIDIA" : "Nightshift", t0 = Date.now();
+  steps([...base, {state:"run", by:writer, title:"Writing your answer", detail:`<span id="tick">0 s</span> · ${esc(prep.via || "Meterless Nightshift")}, NVIDIA Nemotron`}]);
   const tick = setInterval(() => { const el = $("#tick"); if (el) el.textContent = Math.round((Date.now() - t0) / 1000) + " s"; }, 1000);
   // Only the sources the answer actually cites, keeping their numbers.
   const foot = cited => `<div class="foot"><strong>Sources</strong><ol class="srcs">${prep.sources.map((x, i) => {
@@ -509,7 +510,7 @@ async function answer(card, prep, user) {
   clearInterval(tick);
   if (!done) throw new Error("the model stopped before finishing");
   steps([...base,
-    {state:"done", by:"Nightshift", title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites a source, your log or a memory"},
+    {state:"done", by:writer, title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites a source, your log or a memory"},
     {state:"done", by:"Meterless H-MEM", title:`Saved as ${esc(done.saved.id)}`, detail:"Next week's check-in will follow up on this"},
     {state:"done", by:"Check-In", title:"Why it chose what it did", detail:(done.decisions || []).map(esc).join("<br>") || "No sources dropped, nothing rewritten"}]);
   card.innerHTML = render(done.text) + (done.cited?.length ? foot(done.cited) : "") +
