@@ -1,5 +1,14 @@
-"""Danger-sign filter. Runs before any model call; a match skips advice entirely."""
+"""Danger-sign filter. Runs before any model call; a match skips advice entirely.
+
+Two layers: plain rules for medical danger signs (chest pain, stroke signs, self-harm), then
+NVIDIA's Nemotron Safety Guard model for harmful requests the rules can't phrase, such as asking
+how many pills would be fatal. The rules never depend on the model: if it is unreachable, the
+rules still run and the trace says the model was skipped."""
+import json
+import os
 import re
+import time
+import urllib.request
 
 EMERGENCY = (
     "This could be serious. Please get help now: call your local emergency number "
@@ -50,3 +59,28 @@ DISCLAIMER = (
     "This is general health information, not medical advice. It does not diagnose or "
     "replace a doctor."
 )
+
+
+GUARD_MODEL = "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+GUARD_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+
+
+def guard(text):
+    """Nemotron Safety Guard's verdict on the person's words: {"safe", "categories", "seconds"},
+    or None when there is no NVIDIA key or the call fails (the rules above still ran)."""
+    key = os.environ.get("NVIDIA_API_KEY")
+    if not key:
+        return None
+    body = {"model": GUARD_MODEL, "messages": [{"role": "user", "content": text}], "max_tokens": 60}
+    req = urllib.request.Request(GUARD_URL, data=json.dumps(body).encode(), headers={
+        "Content-Type": "application/json", "Authorization": f"Bearer {key}"})
+    t0 = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            reply = json.load(r)["choices"][0]["message"]["content"]
+        verdict = json.loads(reply[reply.index("{"):reply.rindex("}") + 1])
+    except Exception:
+        return None
+    cats = [c.strip() for c in verdict.get("Safety Categories", "").split(",") if c.strip()]
+    return {"safe": verdict.get("User Safety", "safe").lower() == "safe", "categories": cats,
+            "seconds": round(time.time() - t0, 1)}

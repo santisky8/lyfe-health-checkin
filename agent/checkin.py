@@ -262,7 +262,7 @@ def messages(prep):
               "risk. Under 220 words.\n\n"
               if any(t.get("kind") == "answer" for t in convo) else "")
     asked = convo[-1]["content"] if follow else prep["question"]  # the transcript has the rest
-    user = (follow + f"Question: {asked}\n\nCandidate causes to weigh: "
+    user = (follow + prep.get("caution", "") + f"Question: {asked}\n\nCandidate causes to weigh: "
             f"{', '.join(prep['hypotheses']) or 'none'}\nRemedies or products asked about: "
             f"{', '.join(prep.get('remedies', [])) or 'none'}\n"
             + (f"Branded products whose ingredients you do NOT know: {', '.join(prep['brands'])}. "
@@ -359,7 +359,7 @@ def find_reviews(terms, context):
     return None
 
 
-def prepare(question, user_id, as_of=None, clarified=False, said=None):
+def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=None):
     """Everything the answer is built from, gathered before it is written: the safety check,
     candidate causes, library topics and the user's numbers through Zetaris, live PubMed
     reviews, and past check-ins from H-MEM. `said` is what the person wrote themselves, when
@@ -367,7 +367,7 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None):
     sql = store.start_log()
     decisions = []
     if said is None:
-        urgent = danger(question, user_id)
+        urgent, verdict = danger(question, user_id)
         if urgent:
             return {"question": question, "user": user_id, "urgent": urgent}
     timings = {}
@@ -457,6 +457,7 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None):
         "topics": topics or [h.lower() for h in hyps[:2]],
         "sources": sources, "past": past, "decisions": decisions,
         "sql": list(sql), "backend": store.backend(), "timings": timings, "via": via,
+        "guard": verdict, "caution": guard_note(verdict, decisions),
     }
 
 
@@ -465,7 +466,7 @@ def turn(turns, user_id, as_of=None):
     {"role": "user" | "assistant", "content": ..., "kind": "ask" | "answer"}. Returns a
     follow-up question ({"ask": {...}}), the emergency message, or the prepared evidence for
     an answer (the page then streams it with /api/stream)."""
-    urgent = danger(turns[-1]["content"], user_id)
+    urgent, verdict = danger(turns[-1]["content"], user_id)
     if urgent:
         return {"urgent": urgent}
     t0 = time.time()
@@ -474,19 +475,41 @@ def turn(turns, user_id, as_of=None):
         return {"ask": ask, "timings": {"clarify": round(time.time() - t0, 1)}}
     clarify_s = round(time.time() - t0, 1)
     said = " ".join(t["content"] for t in turns if t["role"] == "user")
-    prep = prepare(clarify.case_text(turns), user_id, as_of, clarified=True, said=said)
+    prep = prepare(clarify.case_text(turns), user_id, as_of, clarified=True, said=said,
+                   verdict=verdict)
     prep["conversation"] = turns
     prep["timings"]["clarify"] = clarify_s
     return prep
 
 
 def danger(text, user_id):
-    """The emergency message when the person's words show a danger sign, logged to H-MEM."""
+    """(emergency message or None, Nemotron Safety Guard verdict or None). The rules come first;
+    the guard model adds harmful requests they can't phrase. Either path to help is logged to
+    H-MEM."""
     urgent = safety.check(text)
+    verdict = None if urgent else safety.guard(text)
+    if verdict and not verdict["safe"] and "Suicide and Self Harm" in verdict["categories"]:
+        urgent = safety.EMERGENCY
     if urgent:
         memory.remember(user_id, f"Danger sign reported: \"{text}\". Sent to emergency help.",
                         source="safety_filter", tags=["danger"], confidence=1.0)
-    return urgent
+    return urgent, verdict
+
+
+def guard_note(verdict, decisions):
+    """Log the guard's verdict; for a flagged question that isn't self-harm (a maximum dose,
+    say), return the extra instruction that keeps the answer to labels and sources."""
+    if verdict is None:
+        decisions.append("Nemotron Safety Guard was unavailable, so the safety rules ran alone")
+        return ""
+    if verdict["safe"]:
+        return ""
+    cats = ", ".join(verdict["categories"]) or "unsafe"
+    decisions.append(f"Nemotron Safety Guard flagged the question ({cats}), so the answer keeps "
+                     "to labels and trusted sources and points to a pharmacist or doctor")
+    return ("This question was flagged by a safety model (" + cats + "). Give no doses or amounts "
+            "beyond what the evidence or a product label states, and tell the person to confirm "
+            "with a pharmacist or doctor.\n")
 
 
 def latest_per_question(past):

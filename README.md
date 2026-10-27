@@ -16,7 +16,11 @@ model.
 
 1. **Danger-sign filter** (`agent/safety.py`): chest pain, stroke signs, trouble breathing,
    a spreading red swelling, rash with fever, self-harm and similar go straight to emergency
-   help. No model call.
+   help, by plain rules with no model call. Then NVIDIA's **Nemotron Safety Guard**
+   (`llama-3.1-nemotron-safety-guard-8b-v3`) screens for harmful requests the rules can't
+   phrase: a self-harm verdict also goes to crisis help; other flags (a maximum dose, say)
+   keep the answer to labels and sources. Its verdict and categories show under "Show your
+   work". If the model is unreachable, the rules still run and the trace says so.
 2. **Questions first** (`agent/clarify.py`): when the safe answer depends on a detail the
    question leaves out, the agent asks up to three short questions with tap answers before
    anything else. "How long should I take arnica?" asks how it is taken, because arnica

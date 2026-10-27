@@ -385,7 +385,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <h2>Show your work</h2>
       <p class="hint">What the agent did for the last answer, step by step.</p>
       <ol class="steps" id="steps">
-        <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by">Safety</span><b>Danger-sign check</b><small>Chest pain, stroke signs or self-harm skip advice and go straight to emergency help. This check is plain rules, not AI, so it runs first and can't be talked out of it.</small></div></li>
+        <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by">Safety</span><b>Danger-sign check</b><small>Plain rules catch chest pain, stroke signs or self-harm first, so they can't be talked out of it. Then NVIDIA's Nemotron Safety Guard model screens for harmful requests the rules can't phrase. Either one sends you straight to help instead of advice.</small></div></li>
         <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by l">Nightshift</span><b>List possible causes</b><small>A small Nemotron model turns your words into medical terms to look up, and spots any remedy or product you name. These are search terms, not a diagnosis.</small></div></li>
         <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by z">Zetaris</span><b>Search trusted health pages and your Fitbit week</b><small>SQL through the Zetaris Lightning API finds the closest of 1,016 MedlinePlus topics, plus herb and supplement facts from NCCIH. If the question is about sleep or activity, it also reads your last 7 days of Fitbit data.</small></div></li>
         <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by p">PubMed</span><b>Find the research</b><small>PubMed is searched live for a recent systematic review on each possible cause. Case reports are skipped, and papers far off your question are dropped.</small></div></li>
@@ -424,7 +424,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
     <h2>How it decides</h2>
     <p class="asub">Seven steps for every check-in. Each one is shown under "Show your work", with the reason behind each choice.</p>
     <ol class="flow">
-      <li><span class="by">Safety rules</span><b>Danger signs first</b><p>Plain rules, no AI. Chest pain, stroke signs or self-harm go straight to emergency help.</p></li>
+      <li><span class="by">Safety + Nemotron</span><b>Danger signs first</b><p>Plain rules, then NVIDIA's Nemotron Safety Guard. Emergencies and harmful requests go straight to help.</p></li>
       <li><span class="by l">NVIDIA Nemotron</span><b>Words to medical terms</b><p>A small model lists possible causes and any remedy you named, as search terms only.</p></li>
       <li><span class="by z">Zetaris</span><b>Trusted library and your week</b><p>SQL through the Zetaris Lightning API over 1,016 MedlinePlus topics, MyHealthfinder guides, NCCIH and your Fitbit log.</p></li>
       <li><span class="by p">PubMed</span><b>Live research</b><p>A recent systematic review for each possible cause. Case reports are skipped.</p></li>
@@ -832,7 +832,7 @@ async function answer(card, prep, user) {
   lastPast = renderPast = prep.past;
   const lib = prep.sources.filter(x => x.kind !== "research"), papers = prep.sources.filter(x => x.kind === "research");
   const base = [
-    {state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
+    {state:"done", by:"Safety", title:"No danger signs", detail:"Safety rules: clear" + (prep.guard ? `<br>Nemotron Safety Guard: ${prep.guard.safe ? "safe" : "flagged (" + esc(prep.guard.categories.join(", ")) + "), answer kept to labels and sources"} · ${prep.guard.seconds} s` : "")},
     {state:"done", by:"Nightshift", title:`${prep.hypotheses.length} possible causes to check`, detail:`${esc(prep.hypotheses.join(" · ") || "none")}${(prep.remedies || []).length ? `<br>Remedies asked about: ${esc(prep.remedies.join(" · "))}` : ""}<br>${tm.hypotheses ?? "?"} s · search terms, not a diagnosis`},
     {state:"done", by:"Zetaris", title:`${lib.length} trusted health page${lib.length === 1 ? "" : "s"}${s ? " + your Fitbit week" : ""}`, detail:`${esc(lib.map(x => x.title).join(" · ") || "No close library match")}<br><span style="font-size:.8rem">MedlinePlus, MyHealthfinder and NCCIH</span>${s ? `<br>Your Fitbit week, ${fmt(s.from)} to ${fmt(s.to)}` : ""}`,
      more:`<details><summary>See the SQL</summary>${prep.sql.map(q => `<pre>${esc(q)}</pre>`).join("")}</details>`},
