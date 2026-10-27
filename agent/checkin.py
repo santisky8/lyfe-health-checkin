@@ -74,14 +74,16 @@ the label or their pharmacist; never give it a dose or suggest it as treatment.
 One to three short facts from the PubMed reviews, NCCIH or the library, each cited. Treatments
 that need a doctor are named only as options to ask a doctor about.
 **See a doctor if**
-Warning signs and timing, then what to tell the doctor: what they tried, for how long, what
+Warning signs and timing, each cited to the source that lists it (a "See a Doctor" guide or
+the library topic when given), then what to tell the doctor: what they tried, for how long, what
 changed. Say how long it usually takes to settle when the evidence gives it.
 
 Rules: a source counts only if its text supports the claim; skip sources that are off-topic.
 If the question asks why something seemed to work, explain honestly and kindly what the
 evidence says, including placebo, natural ups and downs, and other changes made at the same
 time. Cite every claim with [n] for a source, [log] for their numbers, [m1], [m2] for past
-check-ins. Every cause, step and research fact needs at least one [n]: [log] and [m1] show
+check-ins. Every cause, step, warning sign and research fact needs at least one [n]; give
+only steps and warning signs a source supports, fewer is better than unsourced: [log] and [m1] show
 what applies to this person, never why something is true. If past check-ins are given, say what
 changed since then. Past check-ins only
 say what was asked, tried and suggested before: never use them as evidence for a medical
@@ -186,12 +188,16 @@ def suggestions(user_id, as_of=None, limit=3):
 def sources_for(topics, per_table=2):
     found = []
     marks = ",".join("?" * len(topics))
-    for table, cols in [("myhealthfinder", "title || ' - ' || section"),
-                        ("medlineplus", "title"),
-                        ("pubmed", "title || ' (' || journal || ', ' || year || ')'")]:
+    # MyHealthfinder's "Take Action" sections (daily habits, when to see a doctor) come first:
+    # they are what the steps and warning signs need a source for.
+    for table, cols, order in [
+            ("myhealthfinder", "title || ' - ' || section",
+             "ORDER BY CASE WHEN section LIKE 'Take Action%' THEN 0 ELSE 1 END "),
+            ("medlineplus", "title", ""),
+            ("pubmed", "title || ' (' || journal || ', ' || year || ')'", "")]:
         found += store.query(
             f"SELECT {cols} AS title, substr(text, 1, 900) AS text, url, source "
-            f"FROM {store.table(table)} WHERE topic IN ({marks}) AND text != '' LIMIT ?",
+            f"FROM {store.table(table)} WHERE topic IN ({marks}) AND text != '' {order}LIMIT ?",
             (*topics, per_table * len(topics)))
     seen, unique = set(), []
     for s in found:
@@ -412,7 +418,8 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None):
               if r["match"] >= MIN_MATCH and r["doc_id"] not in ids][:3 - len(found)]
     library_rows = [{"title": r["title"], "text": r["text"], "url": r["url"],
                      "source": r["source"], "kind": "library", "match": r["match"]} for r in found]
-    guide_rows = ([dict(s, kind="guide") for s in sources_for(topics, per_table=1)]
+    guide_rows = ([dict(s, kind="guide") for s in sources_for(topics, per_table=3)
+                   if s["source"].lower().startswith("myhealthfinder")]
                   if topics and summary else [])
     remedy_rows = []
     for name in remedies:
@@ -439,7 +446,7 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None):
     via = llm.via()
     if via != "Meterless Nightshift":
         decisions.append(f"Answer written by {via}")
-    sources = on_topic(question, remedy_rows + library_rows + guide_rows[:2] + papers, decisions)
+    sources = on_topic(question, remedy_rows + library_rows + guide_rows[:3] + papers, decisions)
     return {
         "question": question, "user": user_id, "urgent": None, "summary": summary,
         "hypotheses": hyps, "remedies": remedies, "brands": brands,
@@ -516,6 +523,54 @@ def cited(text):
     return list(dict.fromkeys(int(n) for n in re.findall(r"\[(\d+)\]", text)))
 
 
+VISIT = re.compile(r"\s*(?:[-*•]|\d+[.)])\s+(?:\*\*)?(?:tell|bring|mention|note|share|keep a|try (?:this|these))\b", re.I)
+
+
+LIST_ITEM = re.compile(r"\s*(?:[-*•]|\d+[.)])\s+")
+GROUND_MIN = 0.72  # how close a line and a passage must be in meaning to count as support
+
+
+def _loose_lines(text):
+    """(line, section) for each cause, step and warning sign with no [n] and not about the visit."""
+    out = []
+    for part in re.split(r"^[ \t]*\*\*(?=Possible causes|What you can do now|See a doctor)", text,
+                         flags=re.M | re.I)[1:]:
+        body = re.split(r"^[ \t]*(?:#{1,4}[ \t]*)?\*\*[^*\n]{3,40}\*\*", part.split("\n", 1)[-1],
+                        flags=re.M)[0]
+        out += [ln for ln in body.splitlines()
+                if LIST_ITEM.match(ln) and not re.search(r"\[\d+\]", ln) and not VISIT.match(ln)]
+    return out
+
+
+def ground(text, sources):
+    """Cite each uncited line to a source passage that says the same thing, checked by meaning
+    with the local embedding model. Lines no passage supports stay uncited (the page labels
+    them "no source"). Returns the text and how many lines it cited."""
+    loose = _loose_lines(text)
+    if not loose or not sources:
+        return text, 0
+    passages = [(n, chunk) for n, src in enumerate(sources, 1)
+                for chunk in re.findall(r"[^.!?]+[.!?]", src["text"]) if len(chunk) > 40]
+    if not passages:
+        return text, 0
+    vectors = [library._unit(v) for v in library.embed(
+        [f"search_query: {re.sub(r'[*]|\[(?:log|m\d+)\]', '', ln).strip(' -•')}" for ln in loose] +
+        [f"search_document: {chunk.strip()}" for _, chunk in passages])]
+    lines, chunks, added = vectors[:len(loose)], vectors[len(loose):], 0
+    for ln, v in zip(loose, lines):
+        score, n = max((sum(a * b for a, b in zip(v, c)), n) for c, (n, _) in zip(chunks, passages))
+        if score >= GROUND_MIN:
+            text = text.replace(ln, ln.rstrip().rstrip(".") + f" [{n}].", 1)
+            added += 1
+    return text, added
+
+
+def unsourced(text):
+    """How many causes, steps and warning signs cite no source [n]. Lines that only say what
+    to tell the doctor are advice about the visit, not health facts, so they don't count."""
+    return len(_loose_lines(text))
+
+
 def finish(prep, text):
     """Check the written answer, rewrite it once if it cites no source, save it to H-MEM and
     write the decision trace."""
@@ -532,7 +587,15 @@ def finish(prep, text):
                                  "with [n] for every cause, step and research fact.")
         text = check_citations(llm.clean(llm.chat(retry)), len(prep["sources"]),
                                len(prep["past"]))
+    text, matched = ground(text, prep["sources"])
+    if matched:
+        decisions.append(f"Cited {matched} line{'s' if matched > 1 else ''} the model left uncited "
+                         "to the source passage that says the same thing")
     numbers = cited(text)
+    loose = unsourced(text)
+    if loose:
+        decisions.append(f"{loose} cause{'s' if loose > 1 else ''}, step{'s' if loose > 1 else ''} or warning sign{'s' if loose > 1 else ''} "
+                         "had no source, so the page marks them as general advice")
     if prep["sources"]:
         decisions.append(f"The answer cites {len(numbers)} of {len(prep['sources'])} sources; "
                          "only those are listed")

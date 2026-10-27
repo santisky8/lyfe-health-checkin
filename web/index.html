@@ -120,6 +120,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .kind{font:500 .62rem var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:4px}
 .block svg{flex:none}
 .cite{display:inline-flex;align-items:center;font:500 .7rem/1 var(--mono);padding:3px 6px;border-radius:5px;background:var(--code);color:var(--ink);border:0;cursor:pointer;vertical-align:2px;margin:0 1px}
+.nosrc{display:inline-block;font:500 .66rem/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:var(--line);color:var(--muted);vertical-align:2px;margin-left:4px}
 .cite.log{background:var(--calm-soft);color:var(--calm)}
 .cite.mem{background:var(--mem-soft);color:var(--mem)}
 .foot{border-top:1px solid var(--line);margin-top:18px;padding-top:12px;font-size:.88rem}
@@ -514,7 +515,7 @@ function inline(s) {
   return h.replace(/\[(\d+)\]/g, '<button class="cite" data-src="$1" title="Source $1">$1</button>');
 }
 // Lines starting "- ", "* " or "1. " become lists; other lines stay a paragraph.
-function lines(p) {
+function lines(p, sourced = false) {
   let html = "", list = null, text = [];
   const flush = () => { if (text.length) html += "<p>" + text.join("<br>") + "</p>"; text = []; };
   const close = () => { if (list) html += `</${list}>`; list = null; };
@@ -524,12 +525,14 @@ function lines(p) {
     const kind = m[1] ? "ul" : "ol";
     flush();
     if (list !== kind) { close(); html += `<${kind}>`; list = kind; }
-    html += `<li>${inline(m[3])}</li>`;
+    // A cause or step with no [n] is the model's general knowledge: say so instead of hiding it.
+    const loose = sourced && !/\[\d+\]/.test(m[3]) && !/^(\*\*)?(tell|bring|mention|note|share|keep a|try (this|these))\b/i.test(m[3]) ? ' <span class="nosrc" title="No source supports this line: general advice from the model">no source</span>' : "";
+    html += `<li>${inline(m[3])}${loose}</li>`;
   }
   close(); flush();
   return html;
 }
-const paras = s => s.trim() ? s.trim().split(/\n\s*\n/).map(p => lines(p.trim())).join("") : "";
+const paras = (s, sourced) => s.trim() ? s.trim().split(/\n\s*\n/).map(p => lines(p.trim(), sourced)).join("") : "";
 function render(text) {
   // Split on bold headings that start a line, such as **Try this week**: and **See a doctor if**:
   // Bold words inside a line ("1. **Sleep deprivation** – ...") stay in their list item.
@@ -539,7 +542,7 @@ function render(text) {
     const title = parts[i].trim(), body = parts[i + 1] || "";
     const kind = /your question/i.test(title) ? "yours" : /cause/i.test(title) ? "causes" : /^(try|what you can do)/i.test(title) ? "try"
       : /research/i.test(title) ? "research" : /doctor/i.test(title) ? "doctor" : "plain";
-    html += `<div class="block ${kind}"><h4>${ICON[kind]}${esc(title)}</h4>${paras(body)}</div>`;
+    html += `<div class="block ${kind}"><h4>${ICON[kind]}${esc(title)}</h4>${paras(body, kind === "causes" || kind === "try" || kind === "doctor")}</div>`;
   }
   return html;
 }
