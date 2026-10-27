@@ -87,7 +87,7 @@ def _leaked(text):
 def _chat(messages, stream, max_tokens, model, temperature):
     base, key, _ = _route()
     model = model or os.environ.get("LLM_MODEL", "default")
-    timeout = int(os.environ.get("LLM_TIMEOUT", "600"))
+    timeout = int(os.environ.get("LLM_TIMEOUT", "180"))  # Ultra can think for a minute or two
     if _is_ollama(base):
         url = base.removesuffix("/v1") + "/api/chat"
         options = {"temperature": temperature}
@@ -109,7 +109,15 @@ def _chat(messages, stream, max_tokens, model, temperature):
                    "User-Agent": "lyfe-health-checkin/1.0"}
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
     try:
-        resp = urllib.request.urlopen(req, timeout=timeout)
+        for wait in (2, 4, 0):
+            try:
+                resp = urllib.request.urlopen(req, timeout=timeout)
+                break
+            except urllib.error.HTTPError as e:
+                # Nightshift's queue is full (several check-ins at once): wait, don't fall back
+                if e.code != 429 or not wait or base == NVIDIA_CLOUD:
+                    raise
+                time.sleep(wait)
     except (urllib.error.HTTPError, urllib.error.URLError):
         # Nightshift is up but failing (for example NVIDIA refused the key saved in it): skip
         # it for a minute and send this request to NVIDIA's cloud instead.

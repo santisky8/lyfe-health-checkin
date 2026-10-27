@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "agent"))
 import checkin  # noqa: E402  (loads .env.local)
+import library  # noqa: E402
 import memory  # noqa: E402
 import store  # noqa: E402
 
@@ -232,4 +233,8 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print(f"Lyfe Health Check-In on http://localhost:{PORT} (data: {store.backend()})"
           + (", public mode" if PUBLIC else ""))
+    # Warm up in the background so the first visitor doesn't pay for loading the topic index,
+    # the embedding model and the Zetaris login.
+    threading.Thread(target=lambda: (users(), library.search("tired in the afternoon")),
+                     daemon=True).start()
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

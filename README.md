@@ -66,8 +66,10 @@ model.
 10. **Cited answer** in four parts: possible causes, what you can do now, what the research
    says, see a doctor if. Sources are `[n]`, the user's numbers `[log]`, past check-ins `[m]`.
    Every cause, step and fact must cite a source: an answer with no `[n]` is rewritten once,
-   citation marks that point at nothing are removed, and only the sources the answer cites
-   are listed under it, each with its publisher and site icon.
+   citation marks that point at nothing are removed, a line the model left uncited gets a
+   source only when a source sentence is close in meaning and shares its key words (else the
+   line is removed), and only the sources the answer cites are listed under it, each with its
+   publisher and site icon.
 
 ## Sources
 

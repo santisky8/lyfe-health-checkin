@@ -52,11 +52,8 @@ def relevant(user_id, question, top_n=3, min_similarity=0.66):
     found = recall(user_id, question, top_n=8, threshold=0)
     if not found:
         return []
-    vectors = library.embed([f"search_query: {question}"] +
-                            [f"search_document: {m['content']}" for m in found])
-    q, rest = library._unit(vectors[0]), [library._unit(v) for v in vectors[1:]]
-    for m, v in zip(found, rest):
-        m["similarity"] = round(sum(a * b for a, b in zip(q, v)), 3)
+    for m, score in zip(found, library.similarity(question, [m["content"] for m in found])):
+        m["similarity"] = round(score, 3)
     found = [m for m in found if m["similarity"] >= min_similarity]
     return sorted(found, key=lambda m: -m["similarity"])[:top_n]
 

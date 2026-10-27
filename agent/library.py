@@ -43,9 +43,21 @@ def embed(texts):
     return [_cache[t] for t in texts]
 
 
-def _unit(v):
+def unit(v):
     n = math.sqrt(sum(x * x for x in v)) or 1.0
     return [x / n for x in v]
+
+
+def dot(a, b):
+    """Cosine similarity of two unit vectors."""
+    return sum(x * y for x, y in zip(a, b))
+
+
+def similarity(query, documents):
+    """How close each document is to the query by meaning, -1 to 1 (one embedding call)."""
+    vectors = [unit(v) for v in embed([f"search_query: {query}"] +
+                                      [f"search_document: {d}" for d in documents])]
+    return [dot(vectors[0], v) for v in vectors[1:]]
 
 
 def build(batch=32):
@@ -57,7 +69,7 @@ def build(batch=32):
         # nomic-embed-text expects task prefixes on documents and queries.
         texts = [f"search_document: {r['title']}. Also called: {r['also_called']}. "
                  f"{r['text'][:1200]}" for r in chunk]
-        vectors += [_unit(v) for v in embed(texts)]
+        vectors += [unit(v) for v in embed(texts)]
         print(f"{min(i + batch, len(rows))}/{len(rows)}", end="\r", flush=True)
     INDEX.write_text(json.dumps({"ids": [r["doc_id"] for r in rows],
                                  "titles": [r["title"] for r in rows],
@@ -70,8 +82,8 @@ def search(question, top_n=4):
     global _index
     if _index is None:
         _index = json.loads(INDEX.read_text())
-    q = _unit(embed([f"search_query: {question}"])[0])
-    scored = sorted(((sum(a * b for a, b in zip(q, v)), i)
+    q = unit(embed([f"search_query: {question}"])[0])
+    scored = sorted(((dot(q, v), i)
                      for i, v in enumerate(_index["vectors"])), reverse=True)[:top_n]
     ids = [_index["ids"][i] for _, i in scored]
     score = {_index["ids"][i]: s for s, i in scored}

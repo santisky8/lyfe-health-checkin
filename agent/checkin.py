@@ -205,11 +205,9 @@ def score_sources(question, sources):
     """How close each source is to the question, by meaning (local embedding model)."""
     if not sources:
         return
-    vectors = library.embed([f"search_query: {question}"] +
-                            [f"search_document: {s['title']}. {s['text'][:600]}" for s in sources])
-    q = library._unit(vectors[0])
-    for s, v in zip(sources, vectors[1:]):
-        s["relevance"] = round(sum(a * b for a, b in zip(q, library._unit(v))), 3)
+    scores = library.similarity(question, [f"{s['title']}. {s['text'][:600]}" for s in sources])
+    for s, score in zip(sources, scores):
+        s["relevance"] = round(score, 3)
 
 
 def on_topic(question, sources, decisions):
@@ -339,6 +337,9 @@ def remedy_facts(name, limit=3):
 
 
 EVIDENCE_WAIT = 20  # seconds to wait for PubMed and H-MEM once the Zetaris queries are done
+# One shared pool for that background work, so a burst of check-ins queues instead of starting
+# threads (and H-MEM Node processes) without limit.
+EVIDENCE_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="evidence")
 
 
 def find_reviews(terms, context):
@@ -390,7 +391,6 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
     # PubMed and H-MEM are slow network calls that need nothing from Zetaris, so they run in
     # the background while the Zetaris queries run here (here, so their SQL is logged).
     t0 = time.time()
-    pool = ThreadPoolExecutor(max_workers=2)
     generic = [r for r in remedies if r not in brands]  # PubMed knows ginger, not Gut FX
     # A remedy is searched for these conditions only: on its own, "honey" finds honey for
     # diabetic foot ulcers. With a remedy, the person's condition matters as it meets the
@@ -399,12 +399,12 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
     wanted += ([([hyps[0]], hyps[0], generic[0])] if generic and hyps
                else [([h], h, None) for h in hyps[:3]])
     # One after another: PubMed allows 3 requests a second without a key.
-    reviews = pool.submit(lambda: [(about, find_reviews(terms, context))
+    reviews = EVIDENCE_POOL.submit(lambda: [(about, find_reviews(terms, context))
                                    for terms, about, context in wanted])
     # copy_context: the public demo's visitor id lives in a context variable, and without it
     # recall would read the shared demo memory instead of this visitor's own.
-    recall = pool.submit(contextvars.copy_context().run, memory.relevant, user_id, question, 8)
-    pool.shutdown(wait=False)
+    recall = EVIDENCE_POOL.submit(contextvars.copy_context().run, memory.relevant, user_id,
+                                  question, 8)
     topics = topics_for(question)
     summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
     decisions.append("Used your Fitbit week: the question is about sleep or activity"
@@ -431,9 +431,10 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
         remedy_rows += [dict(r, kind="remedy", about=name) for r in rows]
     timings["zetaris"] = round(time.time() - t0, 1)
     papers, seen = [], set()
-    try:  # a hung PubMed or H-MEM must not hang the check-in; late threads finish on their own
+    try:  # a hung PubMed or H-MEM must not hang the check-in
         found = reviews.result(timeout=EVIDENCE_WAIT)
     except TimeoutError:
+        reviews.cancel()  # still queued: never runs
         found = []
         decisions.append("PubMed didn't answer in time; went on without it")
     for about, found_reviews in found:  # first new review per search, in order
@@ -448,6 +449,7 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
     try:
         past = latest_per_question(recall.result(timeout=EVIDENCE_WAIT))[:3]
     except TimeoutError:
+        recall.cancel()
         past = []
         decisions.append("H-MEM didn't answer in time; went on without past check-ins")
     timings["pubmed"] = round(time.time() - t0, 1)
@@ -589,16 +591,34 @@ def ground(text, sources):
                 for chunk in re.findall(r"[^.!?]+[.!?]", src["text"]) if len(chunk) > 40]
     if not passages:
         return text, 0
-    vectors = [library._unit(v) for v in library.embed(
+    vectors = [library.unit(v) for v in library.embed(
         [f"search_query: {re.sub(r'[*]|\[(?:log|m\d+)\]', '', ln).strip(' -•')}" for ln in loose] +
         [f"search_document: {chunk.strip()}" for _, chunk in passages])]
     lines, chunks, added = vectors[:len(loose)], vectors[len(loose):], 0
     for ln, v in zip(loose, lines):
-        score, n = max((sum(a * b for a, b in zip(v, c)), n) for c, (n, _) in zip(chunks, passages))
+        # Close in meaning AND sharing real words: meaning alone pairs lines with passages
+        # that are only about the same topic, which would show a source that doesn't say it.
+        score, n = max(((library.dot(v, c), n) for c, (n, chunk) in
+                        zip(chunks, passages) if _shares(ln, chunk)), default=(0, 0))
         if score >= GROUND_MIN:
             text = text.replace(ln, ln.rstrip().rstrip(".") + f" [{n}].", 1)
             added += 1
     return text, added
+
+
+_STOP = set("about after again also because before being could doctor does doing during each "
+             "every from have into more most much only other over should some such than that "
+             "their them then there these they this those through under very what when where "
+             "which while will with would your yours".split())
+
+
+def _words(text):
+    """Content words, cut to five letters so "sleeping" meets "sleep" and "hours" meets "hour"."""
+    return {w[:5] for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in _STOP}
+
+
+def _shares(line, passage, at_least=2):
+    return len(_words(line) & _words(passage)) >= at_least
 
 
 def drop_unsourced(text):

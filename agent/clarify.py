@@ -43,6 +43,11 @@ capsule or tea", "Homeopathic pellets", "Gel or cream on the skin"]}}}}
 or, when the guide can answer now: {{"ask": null}}"""
 
 ANSWERED = ("my answers:", "ingredients on the label")
+# A remedy or dose question: how it is taken decides what is safe, so it is never skipped.
+REMEDY = re.compile(r"\b(take|taking|dose|dosage|how much|mg|supplements?|pills?|capsules?|"
+                    r"tablets?|tea|oil|cream|gel|tincture|remedy|herbs?|herbal)\b", re.I)
+FORM_ASK = {"q": "How are you taking it, or planning to?",
+            "options": [ORAL, "In food or drinks", "On the skin (cream, gel or oil)", "Other"]}
 
 
 def transcript(turns, answer_chars=700):
@@ -80,8 +85,11 @@ def next_step(turns):
                          {"role": "user", "content": ASK.format(transcript=transcript(turns))}],
                         max_tokens=2000, temperature=0, model=os.environ.get("CLARIFY_MODEL"))
         ask = json.loads(re.search(r"\{.*\}", text, re.S).group(0)).get("ask")
-    except Exception:  # an unreadable reply never blocks the answer
-        return None
+    except Exception:  # an unreadable reply never blocks the answer...
+        # ...except a remedy question, which still gets the one question safety depends on.
+        said = " ".join(t["content"] for t in turns if t["role"] == "user")
+        first = not any(t["role"] == "assistant" for t in turns)
+        return dict(FORM_ASK) if first and REMEDY.search(said) else None
     if not isinstance(ask, dict):
         return None
     q = str(ask.get("q", "")).strip()
