@@ -26,6 +26,7 @@
   --danger-soft:#3a1717; --mem-soft:#231d42; --mem:#a996ff; --code:#16233c;
   --zet:#8fb2ff; --zet-soft:#162a52; color-scheme:dark}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:17px/1.6 var(--body)}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -43,14 +44,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 .who label{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 6px 4px 14px;font-size:.85rem;color:var(--night-muted)}
 .who select{background:transparent;border:0;color:var(--night-ink);font-weight:600;padding:4px 6px;border-radius:999px;cursor:pointer}
 .who option{color:#111}
-.week{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:28px 48px;padding-block:22px 76px;align-items:end}
+.week{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:24px 40px;padding-block:20px 72px;align-items:end}
 @media (max-width:920px){.week{grid-template-columns:1fr}}
-.hello{font:600 clamp(1.7rem,3.4vw,2.5rem)/1.15 var(--display);margin:0 0 6px;letter-spacing:-.02em;text-wrap:balance}
+.hello{font:600 clamp(1.5rem,2.8vw,2.1rem)/1.15 var(--display);margin:0 0 6px;letter-spacing:-.02em;text-wrap:balance}
 .hello em{font-style:normal;color:#ffb38f}
 .sub{color:var(--night-muted);margin:0 0 22px}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.tile{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:var(--r);padding:14px 16px}
-.tile .v{font:600 1.75rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+.tile{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:var(--r);padding:12px 16px}
+.tile .v{font:600 1.55rem/1.1 var(--display);font-variant-numeric:tabular-nums}
 .tile .v small{font-size:.95rem;color:var(--night-muted);font-weight:500}
 .tile .l{font-size:.85rem;color:var(--night-muted);margin-top:2px}
 .status{display:inline-flex;align-items:center;gap:6px;font:600 .72rem var(--mono);letter-spacing:.04em;text-transform:uppercase;margin-top:8px}
@@ -178,6 +179,47 @@ pre{background:var(--code);border-radius:8px;padding:8px 10px;font:11.5px/1.5 va
 .conf span{flex:1;height:4px;background:var(--line);border-radius:2px;overflow:hidden;max-width:120px}
 .conf i{display:block;height:100%;background:var(--mem)}
 .src-tag{font:600 .68rem var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--mem)}
+/* tabs */
+.tabs{display:flex;gap:4px}
+.tabs button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;color:var(--night-muted);padding:10px 18px 12px;min-height:44px;font:600 1rem var(--display);cursor:pointer;transition:color .15s,border-color .15s}
+.tabs button:hover{color:var(--night-ink)}
+.tabs button[aria-selected="true"]{color:var(--night-ink);border-bottom-color:var(--sun)}
+.tabs .count{font:500 .75rem var(--mono);background:rgba(255,255,255,.1);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:1px}
+@media (min-width:1021px){.work{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}}
+
+/* journal */
+.jpage{padding-block:28px 64px}
+.jhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:22px}
+.jhead h1{font:600 1.75rem/1.2 var(--display);margin:0;letter-spacing:-.01em}
+.jhead p{margin:6px 0 0;color:var(--muted);max-width:62ch;font-size:.95rem}
+.jtools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+.seg button{border:0;background:transparent;padding:8px 14px;min-height:40px;border-radius:9px;cursor:pointer;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--night);color:var(--night-ink)}
+.jsearch{border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-height:44px;background:var(--surface);min-width:min(100%,260px)}
+.jlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,480px),1fr));gap:16px;align-items:start}
+.jcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;gap:14px;scroll-margin:24px;transition:box-shadow .3s}
+.jcard.flash{box-shadow:0 0 0 3px var(--sun)}
+.jmeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.82rem;color:var(--muted)}
+.jmeta .id{font:12px var(--mono)}
+.jmeta .conf{margin-left:auto;padding:0}
+.jmeta .conf>span{flex:none;width:56px}
+.badge{font:600 .68rem var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:6px;background:var(--code);color:var(--muted)}
+.badge.checkin{background:var(--mem-soft);color:var(--mem)}.badge.note{background:var(--calm-soft);color:var(--calm)}.badge.safety{background:var(--danger-soft);color:var(--danger)}
+.times{font-size:.75rem;font-weight:600;background:var(--sun-soft);color:var(--sun-ink);border-radius:999px;padding:2px 9px}
+.jcard h3{font:600 1.12rem/1.35 var(--display);margin:0;text-wrap:balance}
+.jcard .fu{margin:-8px 0 0;font-size:.92rem;color:var(--muted)}
+.jsec{display:grid;gap:6px}
+.jsec h4{margin:0;font:600 .7rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.jsec p{margin:0;font-size:.95rem;line-height:1.55}
+.jsec dl{margin:0;display:grid;gap:8px}
+.jsec dt{font-size:.85rem;color:var(--muted)}.jsec dd{margin:0;font-size:.95rem;font-weight:600}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tags span{background:var(--calm-soft);color:var(--calm);border-radius:999px;padding:3px 10px;font-size:.82rem;font-weight:600}
+.jdata{font-size:.85rem;color:var(--muted);background:var(--code);border-radius:10px;padding:8px 12px;margin:0}
+.jfoot{display:flex;gap:8px;flex-wrap:wrap}
+.jfoot button{border:1px solid var(--line);background:transparent;border-radius:10px;padding:8px 14px;min-height:40px;cursor:pointer;font-weight:600}
+.jfoot button:hover{border-color:var(--sun);color:var(--sun-ink)}
 footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padding-block:22px}
 </style>
 </head>
@@ -185,7 +227,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
 <div class="sky">
   <div class="wrap bar">
     <a class="logo" href="/">
-      <svg width="50" height="50" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lh-heart" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f63"/><stop offset="1" stop-color="#e5412b"/></linearGradient><radialGradient id="lh-glass" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#ffffff" stop-opacity=".35"/><stop offset="1" stop-color="#bcd3ff" stop-opacity=".08"/></radialGradient><linearGradient id="lh-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset="1" stop-color="#8e9aae"/></linearGradient></defs><g transform="translate(-1.5 -4) scale(.95)"><path d="M32 58C14 46 5 36.5 5 25 5 16.7 11.3 10.5 19.3 10.5c5.4 0 10 2.9 12.7 7.4 2.7-4.5 7.3-7.4 12.7-7.4C52.7 10.5 59 16.7 59 25 59 36.5 50 46 32 58z" fill="url(#lh-heart)"/></g><path d="M9.5 18.5c.7-3.8 3.6-6.3 7.4-6.3" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.8" stroke-linecap="round"/><g transform="translate(-7 -16)"><path d="M48.6 48.6l8.6 8.6" stroke="#1c2434" stroke-width="6.6" stroke-linecap="round"/><path d="M48.6 48.6l8.6 8.6" stroke="#f4f7fb" stroke-width="3.8" stroke-linecap="round"/><circle cx="42" cy="42" r="10.5" fill="#11182b"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="#1c2434" stroke-width="4.2"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="url(#lh-rim)" stroke-width="2.3"/><path d="M33.6 42.4h3l1.8-4.2 2.7 8.4 2.1-5.6 1.3 1.4h3.9" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><</g>/svg>
+      <svg width="50" height="50" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lh-heart" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f63"/><stop offset="1" stop-color="#e5412b"/></linearGradient><radialGradient id="lh-glass" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#ffffff" stop-opacity=".35"/><stop offset="1" stop-color="#bcd3ff" stop-opacity=".08"/></radialGradient><linearGradient id="lh-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset="1" stop-color="#8e9aae"/></linearGradient></defs><g transform="translate(-1.5 -4) scale(.95)"><path d="M32 58C14 46 5 36.5 5 25 5 16.7 11.3 10.5 19.3 10.5c5.4 0 10 2.9 12.7 7.4 2.7-4.5 7.3-7.4 12.7-7.4C52.7 10.5 59 16.7 59 25 59 36.5 50 46 32 58z" fill="url(#lh-heart)"/></g><path d="M9.5 18.5c.7-3.8 3.6-6.3 7.4-6.3" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.8" stroke-linecap="round"/><g transform="translate(-7 -16)"><path d="M48.6 48.6l8.6 8.6" stroke="#1c2434" stroke-width="6.6" stroke-linecap="round"/><path d="M48.6 48.6l8.6 8.6" stroke="#f4f7fb" stroke-width="3.8" stroke-linecap="round"/><circle cx="42" cy="42" r="10.5" fill="#11182b"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="#1c2434" stroke-width="4.2"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="url(#lh-rim)" stroke-width="2.3"/><path d="M33.6 42.4h3l1.8-4.2 2.7 8.4 2.1-5.6 1.3 1.4h3.9" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
       <div><b>Lyfe Health <span>Check-In</span></b></div>
     </a>
     <div class="who">
@@ -193,7 +235,11 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <label>Week <select id="asof" aria-label="Week"></select></label>
     </div>
   </div>
-  <div class="wrap week">
+  <nav class="wrap tabs" role="tablist" aria-label="Sections">
+    <button role="tab" id="tab-checkin" data-tab="checkin" aria-selected="true" aria-controls="page-checkin">Check in</button>
+    <button role="tab" id="tab-journal" data-tab="journal" aria-selected="false" aria-controls="page-journal">Journal<span class="count" id="jcount"></span></button>
+  </nav>
+  <div class="wrap week" data-page="checkin">
     <div>
       <h1 class="hello" id="hello">Here's your week.</h1>
       <p class="sub" id="range">Loading your log…</p>
@@ -207,7 +253,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
   </div>
 </div>
 
-<div class="wrap main">
+<div class="wrap main" id="page-checkin" data-page="checkin" role="tabpanel" aria-labelledby="tab-checkin">
   <div class="feed">
     <div class="ask">
       <h2>What's going on with your body?</h2>
@@ -243,13 +289,26 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
         <li class="step wait"><span class="dot"></span><div><span class="by l">Nightshift</span><b>Write the answer</b><small>Meterless Nightshift on NVIDIA Nemotron. Your question and its evidence go to NVIDIA to be answered.</small></div></li>
       </ol>
     </section>
-    <section>
-      <h2>Check-in journal</h2>
-      <p class="hint">Kept by Meterless H-MEM. Every change is saved and can't be erased.</p>
-      <div id="journal"></div>
-    </section>
   </aside>
 </div>
+
+<main class="wrap jpage" id="page-journal" data-page="journal" role="tabpanel" aria-labelledby="tab-journal" hidden>
+  <div class="jhead">
+    <div>
+      <h1>Your journal</h1>
+      <p>Every check-in and note, kept by Meterless H-MEM with its source, confidence and date. Changes are added to its history; nothing is erased.</p>
+    </div>
+    <div class="jtools">
+      <div class="seg" role="group" aria-label="Show">
+        <button type="button" data-f="all" aria-pressed="true">All</button>
+        <button type="button" data-f="checkin" aria-pressed="false">Check-ins</button>
+        <button type="button" data-f="note" aria-pressed="false">Your notes</button>
+      </div>
+      <input class="jsearch" id="jsearch" type="search" placeholder="Search your journal" aria-label="Search your journal">
+    </div>
+  </div>
+  <div class="jlist" id="journal"></div>
+</main>
 
 <footer><div class="wrap">General health information, not medical advice. Check-In does not diagnose or replace a doctor. In an emergency, call your local emergency number. For crisis support, see findahelpline.com.</div></footer>
 
@@ -324,15 +383,60 @@ async function refreshWeek() {
     <text x="${L}" y="${H - 5}">${rows[0] ? fmt(rows[0].day) : ""}</text><text x="${W}" y="${H - 5}" text-anchor="end">${rows[n - 1] ? fmt(rows[n - 1].day) : ""}</text></svg>`;
 }
 
+// ---------- journal ----------
+let journal = [], jfilter = "all", lastPast = [];
 async function refreshJournal() {
-  const mems = await api(`/api/memory?user=${encodeURIComponent($("#user").value)}`);
-  const label = {checkin:"Check-in", user_report:"You reported", safety_filter:"Safety"};
-  $("#journal").innerHTML = mems.length ? mems.slice().reverse().map(m => `<div class="mem">
-      <div class="meta"><span class="src-tag">${esc(label[m.source] || m.source)}</span><span>${esc(m.id)} · ${esc(m.learnedAt.slice(5, 16).replace("T", " "))}</span></div>
-      <p>${esc(m.content.replace(/^Check-in: /, "").replace(/^User reported: /, ""))}</p>
-      <div class="conf">confidence <span><i style="width:${m.confidence * 100}%"></i></span>${m.confidence.toFixed(2)}</div></div>`).join("")
-    : '<p class="empty" style="font-size:.9rem;margin:0 0 10px">Nothing yet. After your first check-in, the agent keeps what it found and what it suggested.</p>';
+  journal = await api(`/api/memory?user=${encodeURIComponent($("#user").value)}`);
+  $("#jcount").textContent = journal.length || "";
+  renderJournal();
 }
+const when = t => new Date(t).toLocaleString("en", {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"});
+function renderJournal() {
+  const q = $("#jsearch").value.trim().toLowerCase(), seen = new Map();
+  // Newest first; the same question asked again shows once, with how many times it was asked.
+  for (const m of journal.slice().reverse()) {
+    const e = m.entry || {kind:"other", text:m.content};
+    if (jfilter !== "all" && e.kind !== jfilter) continue;
+    if (q && !m.content.toLowerCase().includes(q)) continue;
+    const key = e.kind === "checkin" ? (e.question + "|" + (e.follow_up || "")).toLowerCase() : m.id;
+    if (seen.has(key)) { seen.get(key).times++; seen.get(key).ids.push(m.id); continue; }
+    seen.set(key, {m, e, times: 1, ids: [m.id]});
+  }
+  const cards = [...seen.values()].map(({m, e, times, ids}) => {
+    const label = {checkin:"Check-in", note:"Your note", safety:"Safety"}[e.kind] || "Memory";
+    const meta = `<div class="jmeta"><span class="badge ${e.kind}">${label}</span><span>${esc(when(m.learnedAt))}</span><span class="id">${esc(m.id)}</span>${times > 1 ? `<span class="times">asked ${times} times</span>` : ""}<span class="conf" title="How sure H-MEM is about this memory">confidence <span><i style="width:${m.confidence * 100}%"></i></span>${m.confidence.toFixed(2)}</span></div>`;
+    if (e.kind !== "checkin") return `<article class="jcard" data-ids="${esc(ids.join(" "))}">${meta}<h3>${esc(e.text)}</h3></article>`;
+    const sec = (title, body) => body ? `<div class="jsec"><h4>${title}</h4>${body}</div>` : "";
+    return `<article class="jcard" data-ids="${esc(ids.join(" "))}">${meta}
+      <h3>${esc(e.question)}</h3>${e.follow_up ? `<p class="fu">Follow-up: ${esc(e.follow_up)}</p>` : ""}
+      ${sec("Your answers", e.answers.length ? `<dl>${e.answers.map(a => `${a.ask ? `<dt>${esc(a.ask)}</dt>` : ""}<dd>${esc(a.reply)}</dd>`).join("")}</dl>` : "")}
+      ${sec("Possible causes it checked", e.considered.length ? `<div class="tags">${e.considered.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "")}
+      ${sec("What it suggested", e.suggested ? `<p>${esc(e.suggested)}</p>` : "")}
+      ${e.data ? `<p class="jdata">Your log at the time: ${esc(e.data)}</p>` : ""}
+      <div class="jfoot"><button type="button" data-again="${esc(e.question)}">Ask again</button></div>
+    </article>`;
+  });
+  $("#journal").innerHTML = cards.join("") || `<p class="empty">${journal.length ? "Nothing matches." : "Nothing yet. After your first check-in, the agent keeps what you asked, what it found and what it suggested."}</p>`;
+}
+function showTab(name, memId) {
+  document.querySelectorAll("[data-page]").forEach(el => el.hidden = el.dataset.page !== name);
+  document.querySelectorAll(".tabs [role=tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  if (name !== "journal") return;
+  const card = memId && [...document.querySelectorAll(".jcard")].find(c => c.dataset.ids.split(" ").includes(memId));
+  if (card) { card.scrollIntoView({behavior: "smooth", block: "start"}); card.classList.add("flash"); setTimeout(() => card.classList.remove("flash"), 1600); }
+  else window.scrollTo({top: 0});
+}
+document.querySelectorAll(".tabs [role=tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
+  jfilter = b.dataset.f;
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  renderJournal();
+});
+$("#jsearch").addEventListener("input", renderJournal);
+$("#journal").addEventListener("click", e => {
+  const b = e.target.closest("[data-again]"); if (!b) return;
+  showTab("checkin"); newTopic(); $("#question").value = b.dataset.again; grow(); $("#question").focus();
+});
 
 // ---------- answer rendering ----------
 const ICON = {
@@ -347,7 +451,7 @@ function inline(s) {
   let h = esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   h = h.replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, "$1<em>$2</em>");
   h = h.replace(/\[(log|checks)\]/g, '<button class="cite log" data-go="week" title="From your own log">your log</button>');
-  h = h.replace(/\[m(\d+)\]/g, '<button class="cite mem" data-go="journal" title="From a past check-in">memory $1</button>');
+  h = h.replace(/\[m(\d+)\]/g, '<button class="cite mem" data-go="journal" data-m="$1" title="From a past check-in">memory $1</button>');
   return h.replace(/\[(\d+)\]/g, '<button class="cite" data-src="$1" title="Source $1">$1</button>');
 }
 // Lines starting "- ", "* " or "1. " become lists; other lines stay a paragraph.
@@ -383,7 +487,7 @@ function render(text) {
 document.addEventListener("click", e => {
   const t = e.target.closest(".cite"); if (!t) return;
   if (t.dataset.go === "week") return window.scrollTo({top: 0, behavior: "smooth"});
-  if (t.dataset.go === "journal") return $("#journal").scrollIntoView({behavior: "smooth", block: "center"});
+  if (t.dataset.go === "journal") return showTab("journal", lastPast[t.dataset.m - 1]?.id);
   const li = t.closest(".card")?.querySelector(`[data-n="${t.dataset.src}"]`);
   if (li) { li.scrollIntoView({behavior: "smooth", block: "center"}); li.classList.add("flash"); setTimeout(() => li.classList.remove("flash"), 1400); }
 });
@@ -486,6 +590,7 @@ function askBack(c, card, ask) {
 // Evidence first, then the answer streamed as the model writes it. Returns the final text.
 async function answer(card, prep, user) {
   const s = prep.summary, nSrc = prep.sources.length, tm = prep.timings || {};
+  lastPast = prep.past;
   const lib = prep.sources.filter(x => x.kind !== "research"), papers = prep.sources.filter(x => x.kind === "research");
   const base = [
     {state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},

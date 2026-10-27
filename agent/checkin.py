@@ -279,7 +279,16 @@ def suggestion_in(text):
         return ""
     body = re.split(r"\*\*", part[1])[0]
     first = next((ln.strip(" *-•\t") for ln in body.splitlines() if ln.strip(" *-•\t")), "")
-    return re.sub(r"\[(\d+|log|m\d+)\]", "", first)[:300].strip()
+    return whole_sentences(re.sub(r"\[(\d+|log|m\d+)\]", "", first).strip())
+
+
+def whole_sentences(text, limit=300):
+    """At most `limit` characters, cut after the last full sentence rather than mid-word."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    return cut[:end + 1] if end > 0 else cut.rsplit(" ", 1)[0] + "…"
 
 
 def remember_checkin(prep, text, cited_numbers):
@@ -560,6 +569,46 @@ def answer(question, user_id, dry_run=False, as_of=None, clarified=False):
     return (f"{out['text']}\n\nSources:\n{refs}"
             + (f"\n\nRemembered from past check-ins (Meterless H-MEM):\n{mems}" if mems else "")
             + f"\n\nSaved this check-in to memory as {out['saved']['id']}.\n\n{out['disclaimer']}")
+
+
+def journal_entry(m):
+    """A stored memory split into the parts the journal shows: what was asked (and any
+    follow-up), the person's answers to Check-In's questions, the causes considered, the log at
+    the time and the suggestion. The parts come from the text remember_checkin() writes."""
+    text = m["content"]
+    if m.get("source") == "user_report":
+        return {"kind": "note", "text": text.removeprefix("User reported: ")}
+    if m.get("source") != "checkin":
+        return {"kind": "safety" if m.get("source") == "safety_filter" else "other", "text": text}
+    body = text.removeprefix("Check-in: ")
+    # Older check-ins joined the parts with ". " and capitalised them ("Data: ...").
+    found = re.match(r'asked "(.*?)"(?=; |\. |\.?$)', body, re.S)
+    if not found:
+        return {"kind": "other", "text": text}
+    entry = {"kind": "checkin", "question": "", "follow_up": None, "answers": [],
+             "considered": [], "data": None, "suggested": None}
+    for part in found.group(1).split("\n\n"):  # the conversation as clarify.case_text folds it
+        if part.startswith("My answers:"):
+            for line in part.splitlines()[1:]:
+                ask, _, reply = line.removeprefix("- ").partition("? ")
+                entry["answers"].append({"ask": ask + "?" if reply else "", "reply": reply or ask})
+        elif part.startswith("Follow-up question: "):
+            entry["follow_up"] = part.removeprefix("Follow-up question: ")
+        elif not part.startswith("(Check-In answered:") and not entry["question"]:
+            entry["question"] = part
+    rest = body[found.end():].lstrip("; .")
+    for part in re.split(r"(?:; |\. )(?=(?:considered|data:|suggested:) )", rest, flags=re.I):
+        part = part.rstrip(".")
+        part = part[:1].lower() + part[1:]
+        if part.startswith("considered "):
+            entry["considered"] = part.removeprefix("considered ").split(", ")
+        elif part.startswith("data: "):
+            entry["data"] = part.removeprefix("data: ")
+        elif part.startswith("suggested: ") and len(part) > len("suggested: ") + 3:
+            tip = part.removeprefix("suggested: ").removeprefix("Try this: ")
+            # Older check-ins kept the first 300 characters, sometimes ending mid-word.
+            entry["suggested"] = whole_sentences(tip, 290) if len(tip) >= 290 else tip + "."
+    return entry
 
 
 def note(user_id, text):

@@ -123,7 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/suggest":
                 return self._send(200, checkin.suggestions(person(q["user"]), day(q.get("as_of"))))
             if url.path == "/api/memory":
-                return self._send(200, memory.all_memories(person(q["user"])))
+                return self._send(200, [dict(m, entry=checkin.journal_entry(m))
+                                        for m in memory.all_memories(person(q["user"]))])
             self._send(404, {"error": "not found"})
         except Exception as e:
             self._fail(e)
