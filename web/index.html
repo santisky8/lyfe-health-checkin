@@ -331,7 +331,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
   <div class="wrap week" data-page="checkin">
     <div>
       <h1 class="hello" id="hello">Here's your week.</h1>
-      <p class="sub" id="range">Loading your log…</p>
+      <p class="sub" id="range">Loading your week…</p>
       <div class="tiles" id="tiles"></div>
     </div>
     <div class="chart">
@@ -373,10 +373,10 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <ol class="steps" id="steps">
         <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by">Safety</span><b>Danger-sign check</b><small>Chest pain, stroke signs or self-harm skip advice and go straight to emergency help. This check is plain rules, not AI, so it runs first and can't be talked out of it.</small></div></li>
         <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by l">Nightshift</span><b>List possible causes</b><small>A small Nemotron model turns your words into medical terms to look up, and spots any remedy or product you name. These are search terms, not a diagnosis.</small></div></li>
-        <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by z">Zetaris</span><b>Search the health library and your log</b><small>SQL through the Zetaris Lightning API finds the closest of 1,016 MedlinePlus topics, plus herb and supplement facts from NCCIH. If the question is about sleep or activity, it also reads your last 7 days of Fitbit data.</small></div></li>
+        <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by z">Zetaris</span><b>Search trusted health pages and your Fitbit week</b><small>SQL through the Zetaris Lightning API finds the closest of 1,016 MedlinePlus topics, plus herb and supplement facts from NCCIH. If the question is about sleep or activity, it also reads your last 7 days of Fitbit data.</small></div></li>
         <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by p">PubMed</span><b>Find the research</b><small>PubMed is searched live for a recent systematic review on each possible cause. Case reports are skipped, and papers far off your question are dropped.</small></div></li>
         <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by m">Meterless H-MEM</span><b>Recall past check-ins</b><small>Meterless H-MEM recalls your earlier check-ins and notes that match this question by meaning. Each memory has a source, a confidence score and the time it was learned.</small></div></li>
-        <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by l">Nightshift</span><b>Write the answer</b><small>NVIDIA Nemotron, served through Meterless Nightshift, writes the answer from the evidence above only. Every cause and step must cite a source, your log or a memory; an answer that cites nothing is written again.</small></div></li>
+        <li class="step wait" tabindex="0" role="button" aria-expanded="false"><span class="dot"></span><div><span class="by l">Nightshift</span><b>Write the answer</b><small>NVIDIA Nemotron, served through Meterless Nightshift, writes the answer from the evidence above only. Every cause and step must cite a trusted source; your Fitbit week and earlier check-ins show what applies to you. An answer that cites nothing is written again.</small></div></li>
       </ol>
     </section>
   </aside>
@@ -581,7 +581,7 @@ function renderJournal() {
       ${sec("Your answers", e.answers.length ? `<dl>${e.answers.map(a => `${a.ask ? `<dt>${esc(a.ask)}</dt>` : ""}<dd>${esc(a.reply)}</dd>`).join("")}</dl>` : "")}
       ${sec("Possible causes it checked", e.considered.length ? `<div class="tags">${e.considered.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "")}
       ${sec("What it suggested", e.steps.length ? `<ul class="jsteps">${e.steps.map(st => `<li>${esc(st)}</li>`).join("")}</ul>` : "")}
-      ${e.data ? `<p class="jdata">Your log at the time: ${esc(e.data)}</p>` : ""}
+      ${e.data ? `<p class="jdata">Your Fitbit week at the time: ${esc(e.data)}</p>` : ""}
       ${m.answer ? `<details class="full"><summary>Read the full answer</summary><div class="fullans">${renderOld(m.answer)}</div></details>`
         : ""}
       <div class="jfoot">${conf}<button type="button" data-again="${esc(e.question)}">Ask again</button></div>
@@ -783,10 +783,13 @@ async function answer(card, prep, user) {
   const base = [
     {state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
     {state:"done", by:"Nightshift", title:`${prep.hypotheses.length} possible causes to check`, detail:`${esc(prep.hypotheses.join(" · ") || "none")}${(prep.remedies || []).length ? `<br>Remedies asked about: ${esc(prep.remedies.join(" · "))}` : ""}<br>${tm.hypotheses ?? "?"} s · search terms, not a diagnosis`},
-    {state:"done", by:"Zetaris", title:`${lib.length} library section${lib.length === 1 ? "" : "s"}${s ? " + your log" : ""}`, detail:`${esc(lib.map(x => x.title).join(" · ") || "No close library match")}<br><span style="font-size:.8rem">MedlinePlus topics and NCCIH herb and supplement pages</span>${s ? `<br>Your log for ${fmt(s.from)} to ${fmt(s.to)}` : ""}`,
+    {state:"done", by:"Zetaris", title:`${lib.length} trusted health page${lib.length === 1 ? "" : "s"}${s ? " + your Fitbit week" : ""}`, detail:`${esc(lib.map(x => x.title).join(" · ") || "No close library match")}<br><span style="font-size:.8rem">MedlinePlus, MyHealthfinder and NCCIH</span>${s ? `<br>Your Fitbit week, ${fmt(s.from)} to ${fmt(s.to)}` : ""}`,
      more:`<details><summary>See the SQL</summary>${prep.sql.map(q => `<pre>${esc(q)}</pre>`).join("")}</details>`},
     {state:"done", by:"PubMed", title:`${papers.length} review${papers.length === 1 ? "" : "s"} found live`, detail: papers.map(p => esc(p.about || "") + ": " + esc(p.title.slice(0, 60)) + "…").join("<br>") || "No reviews found"},
-    {state:"done", by:"Meterless H-MEM", title: prep.past.length ? `${prep.past.length} past check-in${prep.past.length > 1 ? "s" : ""} recalled` : "First check-in on this", detail: prep.past.length ? prep.past.map(m => esc(m.content.replace(/^Check-in: |^User reported: /, "").slice(0, 80)) + "…").join("<br>") : "Nothing to follow up on yet"},
+    {state:"done", by:"Meterless H-MEM", title: prep.past.length ? `${prep.past.length} past check-in${prep.past.length > 1 ? "s" : ""} recalled` : "First check-in on this", detail: prep.past.length ? prep.past.map(m => {
+      const q = m.content.match(/asked "([^"\n]*)/)?.[1], d = new Date(m.learnedAt).toLocaleDateString("en", {month:"short", day:"numeric"});
+      return esc(q ? `You asked "${q.slice(0, 70)}" (${d})` : `You noted "${m.content.replace(/^User reported: /, "").slice(0, 70)}" (${d})`);
+    }).join("<br>") : "Nothing to follow up on yet"},
   ];
   // The NVIDIA cloud writes the answer only when Nightshift is offline (see agent/llm.py).
   const writer = /^NVIDIA/.test(prep.via || "") ? "NVIDIA" : "Nightshift", t0 = Date.now();
@@ -817,7 +820,7 @@ async function answer(card, prep, user) {
   clearInterval(tick);
   if (!done) throw new Error("the model stopped before finishing");
   steps([...base,
-    {state:"done", by:writer, title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every claim cites a source, your log or a memory"},
+    {state:"done", by:writer, title:`Answer written in ${Math.round((Date.now() - t0) / 1000)} s`, detail:"Every point cites a trusted source, your Fitbit week or an earlier check-in"},
     {state:"done", by:"Meterless H-MEM", title:`Saved as ${esc(done.saved.id)}`, detail:"Next week's check-in will follow up on this"},
     {state:"done", by:"Check-In", title:"Why it chose what it did", detail:(done.decisions || []).map(esc).join("<br>") || "No sources dropped, nothing rewritten"}]);
   card.innerHTML = render(done.text) + (done.cited?.length ? foot(done.cited) : "") +

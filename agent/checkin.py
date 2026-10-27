@@ -411,8 +411,8 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None):
     pool.shutdown(wait=False)
     topics = topics_for(question)
     summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
-    decisions.append("Used your sleep and activity log: the question is about what it measures"
-                     if summary else "Left your log out: the question isn't about sleep, "
+    decisions.append("Used your Fitbit week: the question is about sleep or activity"
+                     if summary else "Left your Fitbit week out: the question isn't about sleep, "
                      "activity or weight")
     # Exact condition names first; meaning-based search only fills the gaps, because on its
     # own it can rank Diphtheria above Eczema for "red, dry skin in the folds of my arms".
