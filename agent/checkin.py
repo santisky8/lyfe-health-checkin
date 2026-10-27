@@ -272,14 +272,15 @@ def stream_model(prep):
     return llm.chat(messages(prep), stream=True)
 
 
-def suggestion_in(text):
-    """The first step under "What you can do now", kept so the next check-in can follow up."""
+def steps_in(text):
+    """Every step under "What you can do now", without citation marks, so the journal and the
+    next check-in see the whole suggestion, not just its first line."""
     part = re.split(r"\*\*What you can do now\*\*:?", text, flags=re.I)
     if len(part) < 2:
-        return ""
-    body = re.split(r"\*\*", part[1])[0]
-    first = next((ln.strip(" *-•\t") for ln in body.splitlines() if ln.strip(" *-•\t")), "")
-    return whole_sentences(re.sub(r"\[(\d+|log|m\d+)\]", "", first).strip())
+        return []
+    body = re.split(r"^[ \t]*(?:#{1,4}[ \t]*)?\*\*[^*\n]{3,40}\*\*", part[1], flags=re.M)[0]
+    steps = [re.sub(r"\s*\[(\d+|log|m\d+)\]", "", ln).strip(" *-•\t") for ln in body.splitlines()]
+    return [re.sub(r"^\d+[.)]\s*", "", st) for st in steps if len(st) > 3]
 
 
 def whole_sentences(text, limit=300):
@@ -302,9 +303,13 @@ def remember_checkin(prep, text, cited_numbers):
                      f"{summary['moderate_or_vigorous_minutes_per_week']} active min/week "
                      f"(log {summary['from']} to {summary['to']})")
         refs.append(f"{store.table('user_log')}:{summary['from']}..{summary['to']}")
-    tip = suggestion_in(text)
-    if tip:
-        parts.append(f"suggested: {tip}")
+    steps, kept = steps_in(text), []
+    for st in steps:  # whole steps only, up to about 900 characters in all
+        if sum(len(k) + 3 for k in kept) + len(st) > 900:
+            break
+        kept.append(st)
+    if kept:
+        parts.append("suggested: " + " / ".join(kept))
     refs += [prep["sources"][n - 1]["url"] for n in cited_numbers[:5]]
     return memory.remember(prep["user"], "Check-in: " + "; ".join(parts) + ".", source="checkin",
                            tags=prep["topics"], confidence=0.9, refs=refs)
@@ -532,12 +537,12 @@ def finish(prep, text):
         decisions.append(f"The answer cites {len(numbers)} of {len(prep['sources'])} sources; "
                          "only those are listed")
     saved = remember_checkin(prep, text, numbers)
-    save_trace(prep, saved["id"], numbers)
+    save_trace(prep, saved["id"], numbers, text)
     return {"text": text, "saved": saved, "cited": numbers, "decisions": decisions,
             "disclaimer": safety.DISCLAIMER}
 
 
-def save_trace(prep, memory_id, numbers):
+def save_trace(prep, memory_id, numbers, text):
     """Everything the agent decided for this check-in, kept next to its H-MEM memory."""
     TRACES.mkdir(parents=True, exist_ok=True)
     trace = {k: prep.get(k) for k in ("question", "hypotheses", "remedies", "brands", "topics",
@@ -546,9 +551,20 @@ def save_trace(prep, memory_id, numbers):
                         for s in prep["sources"]]
     trace["cited"] = numbers
     trace["recalled"] = [m["id"] for m in prep["past"]]
-    who = prep["user"] + (f"-v{memory.visitor.get()}" if memory.visitor.get() else "")
-    path = TRACES / f"{who}-{memory_id}.json"
-    path.write_text(json.dumps(trace, indent=1), encoding="utf-8")
+    trace["answer"] = text
+    trace_path(prep["user"], memory_id).write_text(json.dumps(trace, indent=1), encoding="utf-8")
+
+
+def trace_path(user_id, memory_id):
+    """Where a check-in's trace lives; public-demo visitors each have their own."""
+    who = str(user_id) + (f"-v{memory.visitor.get()}" if memory.visitor.get() else "")
+    return TRACES / f"{who}-{memory_id}.json"
+
+
+def saved_answer(user_id, memory_id):
+    """The full answer of a check-in, from its trace, or None for older check-ins."""
+    path = trace_path(user_id, memory_id)
+    return json.loads(path.read_text(encoding="utf-8")).get("answer") if path.exists() else None
 
 
 def answer(question, user_id, dry_run=False, as_of=None, clarified=False):
@@ -586,7 +602,7 @@ def journal_entry(m):
     if not found:
         return {"kind": "other", "text": text}
     entry = {"kind": "checkin", "question": "", "follow_up": None, "answers": [],
-             "considered": [], "data": None, "suggested": None}
+             "considered": [], "data": None, "steps": []}
     for part in found.group(1).split("\n\n"):  # the conversation as clarify.case_text folds it
         if part.startswith("My answers:"):
             for line in part.splitlines()[1:]:
@@ -606,8 +622,10 @@ def journal_entry(m):
             entry["data"] = part.removeprefix("data: ")
         elif part.startswith("suggested: ") and len(part) > len("suggested: ") + 3:
             tip = part.removeprefix("suggested: ").removeprefix("Try this: ")
-            # Older check-ins kept the first 300 characters, sometimes ending mid-word.
-            entry["suggested"] = whole_sentences(tip, 290) if len(tip) >= 290 else tip + "."
+            # Older check-ins kept only the first step, cut at 300 characters.
+            entry["steps"] = [whole_sentences(tip, 290) if len(tip) >= 290 else tip + "."] \
+                if " / " not in tip else [st if st.endswith((".", "!", "?")) else st + "."
+                                          for st in tip.split(" / ")]
     return entry
 
 
