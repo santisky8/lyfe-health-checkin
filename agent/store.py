@@ -16,6 +16,7 @@ CLEAN = Path(__file__).resolve().parent.parent / "data" / "clean"
 DB = CLEAN.parent / "checkin.sqlite"
 ZETARIS_DB = "LYFE_HEALTH_CHECKIN"
 _session = {}
+_login_lock = threading.Lock()  # page loads fire several queries at once: log in only once
 _log = threading.local()  # SQL sent in the current check-in, per request thread
 
 
@@ -61,11 +62,13 @@ def _post(path, body, headers=None):
 
 
 def _zetaris(sql, retry=True):
-    if not _session:
-        login = _post("/api/auth/login", {"username": os.environ["ZETARIS_EMAIL"],
-                                          "password": os.environ["ZETARIS_PASSWORD"]})
-        _session.update(token=login["idToken"], org=str(login["orgId"]))
-    headers = {"Authorization": f"Bearer {_session['token']}", "X-Org-ID": _session["org"],
+    with _login_lock:
+        if not _session:
+            login = _post("/api/auth/login", {"username": os.environ["ZETARIS_EMAIL"],
+                                              "password": os.environ["ZETARIS_PASSWORD"]})
+            _session.update(token=login["idToken"], org=str(login["orgId"]))
+        token, org = _session["token"], _session["org"]
+    headers = {"Authorization": f"Bearer {token}", "X-Org-ID": org,
                "X-Request-ID": str(uuid.uuid4())}
     try:
         rows = _post("/api/proxy/query/sql/start", {"select": sql, "pageLimit": 5000},
@@ -75,7 +78,9 @@ def _zetaris(sql, retry=True):
     except urllib.error.HTTPError as e:
         # An expired token comes back as 400 or 401 from Lightning: log in again once.
         if e.code in (400, 401, 403) and retry:
-            _session.clear()
+            with _login_lock:
+                if _session.get("token") == token:  # another thread may have logged in already
+                    _session.clear()
             return _zetaris(sql, retry=False)
         raise
 

@@ -49,8 +49,9 @@ def allowed(kind, caller):
     (each, per), total = LIMITS[kind]
     windows = [((kind, caller, per), each, per), ((kind, "all", total[1]), total[0], total[1])]
     with _lock:
-        if len(_hits) > 10000:  # many callers: forget the old per-caller windows
-            _hits.clear()
+        if len(_hits) > 10000:  # many callers: forget their windows, never the totals
+            for key in [k for k in _hits if k[1] != "all"]:
+                del _hits[key]
         for key, most, secs in windows:
             seen = _hits.setdefault(key, deque())
             while seen and seen[0] < now - secs:
@@ -115,9 +116,10 @@ class Handler(BaseHTTPRequestHandler):
         memory.visitor.set(vid)
 
     def _caller(self):
-        """Who is asking: Funnel forwards every request from 127.0.0.1, with the real address
-        in X-Forwarded-For."""
-        return self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
+        """Who is asking: Funnel forwards every request from 127.0.0.1 and appends the real
+        address to X-Forwarded-For. Earlier entries come from the caller and can be faked, so
+        only the last one counts."""
+        return self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[-1].strip()
 
     def _headers(self, code, kind):
         self.send_response(code)
@@ -156,7 +158,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, users())
             if url.path == "/api/log":
                 return self._send(200, log(person(q["user"]), day(q.get("as_of"))))
-            if url.path in ("/api/suggest", "/api/memory") and not allowed("memory", self._caller()):
+            if (url.path in ("/api/log", "/api/suggest", "/api/memory")
+                    and not allowed("memory", self._caller())):
                 return self._send(429, {"error": "Too many requests. Please wait a minute."})
             if url.path == "/api/suggest":
                 return self._send(200, checkin.suggestions(person(q["user"]), day(q.get("as_of"))))

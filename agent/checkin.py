@@ -38,7 +38,8 @@ ROUTES = {
     "eat": ["nutrition"], "food": ["nutrition"], "diet": ["nutrition"], "vitamin": ["nutrition"],
     "water": ["hydration"], "thirst": ["hydration"], "stress": ["stress"], "anxious": ["stress"],
     "headache": ["headache", "hydration"], "weight": ["weight", "physical activity"],
-    "back": ["back pain", "physical activity"], "alcohol": ["alcohol"], "drink": ["alcohol", "hydration"],
+    "back": ["back pain", "physical activity"], "alcohol": ["alcohol"], "drink": ["hydration"],
+    "beer": ["alcohol"], "wine": ["alcohol"],
 }
 
 SYSTEM = """You are Check-In, a warm, honest health guide. You never diagnose, never treat, and
@@ -174,7 +175,7 @@ def suggestions(user_id, as_of=None, limit=3):
                               f"{week['nights_under_7h']} of {week['nights_logged']} nights under 7 h",
                               "Goal: 7 h or more"]})
     if week["avg_sedentary_hours"] >= 10:
-        awake = 24 - (sleep or 8)
+        awake = max(24 - (sleep or 8), 1)  # a bad log row can claim 24 h of sleep
         out.append({"q": f"I sit about {round(week['avg_sedentary_hours'])} hours a day. "
                          "What does that do to my body, and what helps?",
                     "facts": [f"{week['avg_sedentary_hours']} h sitting a day",
