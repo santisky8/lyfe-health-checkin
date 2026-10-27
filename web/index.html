@@ -28,7 +28,7 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
-body{background:var(--bg);color:var(--ink);font:17px/1.6 var(--body)}
+body{background:var(--bg);isolation:isolate;color:var(--ink);font:17px/1.6 var(--body)}
 button,input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 .wrap{max-width:1240px;margin:0 auto;padding-inline:max(20px,4vw)}
@@ -36,8 +36,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 /* top bar + week band share the night sky */
 .sky{background:radial-gradient(120% 140% at 85% 120%,#3a2a4f 0%,transparent 55%),linear-gradient(180deg,var(--night),var(--night-2));color:var(--night-ink)}
 .bar{display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;justify-content:space-between;padding-block:18px}
-.logo{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
-.logo b{font:700 1.3rem/1 var(--display);letter-spacing:-.01em}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit}
+.logo b{font:700 1.5rem/1 var(--display);letter-spacing:-.015em}
 .logo b span,.brand b span{color:var(--sun)}
 .logo small{display:block;font:500 .72rem/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--night-muted)}
 .who{display:flex;flex-wrap:wrap;gap:10px}
@@ -254,15 +254,25 @@ pre{background:var(--code);border-radius:8px;padding:8px 10px;font:11.5px/1.5 va
 @keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
 .step.done.new .dot{animation:pop .35s ease-out}
 .step.new{animation:rise .35s ease-out both}
+/* a faint echo of the aurora behind the light part of the page: three blurred glows drifting */
+.glow{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.glow i{position:absolute;width:46vmax;height:46vmax;border-radius:50%;filter:blur(90px);opacity:.16;animation:drift 38s ease-in-out infinite alternate}
+.glow i:nth-child(1){background:#ff7a45;left:-12vmax;top:35vh}
+.glow i:nth-child(2){background:#5b7bdc;right:-14vmax;top:55vh;animation-duration:46s;animation-delay:-12s}
+.glow i:nth-child(3){background:#9b6fd6;left:30vw;top:85vh;animation-duration:54s;animation-delay:-25s;opacity:.12}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(8vmax,-6vmax) scale(1.15)}100%{transform:translate(-6vmax,4vmax) scale(.95)}}
+@media (prefers-color-scheme:dark){.glow i{opacity:.1}}
+@media (prefers-reduced-motion:reduce){.glow i{animation:none}}
 @media (prefers-reduced-motion:reduce){.bw,.rise,.step.new,.step.done.new .dot,[data-page]:not([hidden]){animation:none}.sky>canvas.aurora{display:none}.chip:hover,.intro div:hover{transform:none}}
 footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padding-block:22px}
 </style>
 </head>
 <body>
+<div class="glow" aria-hidden="true"><i></i><i></i><i></i></div>
 <div class="sky">
   <div class="wrap bar">
     <a class="logo" href="/">
-      <svg width="50" height="50" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lh-heart" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f63"/><stop offset="1" stop-color="#e5412b"/></linearGradient><radialGradient id="lh-glass" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#ffffff" stop-opacity=".35"/><stop offset="1" stop-color="#bcd3ff" stop-opacity=".08"/></radialGradient><linearGradient id="lh-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset="1" stop-color="#8e9aae"/></linearGradient></defs><g transform="translate(-1.5 -4) scale(.95)"><path d="M32 58C14 46 5 36.5 5 25 5 16.7 11.3 10.5 19.3 10.5c5.4 0 10 2.9 12.7 7.4 2.7-4.5 7.3-7.4 12.7-7.4C52.7 10.5 59 16.7 59 25 59 36.5 50 46 32 58z" fill="url(#lh-heart)"/></g><path d="M9.5 18.5c.7-3.8 3.6-6.3 7.4-6.3" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.8" stroke-linecap="round"/><g transform="translate(-7 -16)"><path d="M48.6 48.6l8.6 8.6" stroke="#1c2434" stroke-width="6.6" stroke-linecap="round"/><path d="M48.6 48.6l8.6 8.6" stroke="#f4f7fb" stroke-width="3.8" stroke-linecap="round"/><circle cx="42" cy="42" r="10.5" fill="#11182b"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="#1c2434" stroke-width="4.2"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="url(#lh-rim)" stroke-width="2.3"/><path d="M33.6 42.4h3l1.8-4.2 2.7 8.4 2.1-5.6 1.3 1.4h3.9" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+      <svg width="42" height="42" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lh-heart" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f63"/><stop offset="1" stop-color="#e5412b"/></linearGradient><radialGradient id="lh-glass" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#ffffff" stop-opacity=".35"/><stop offset="1" stop-color="#bcd3ff" stop-opacity=".08"/></radialGradient><linearGradient id="lh-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f7fb"/><stop offset="1" stop-color="#8e9aae"/></linearGradient></defs><g transform="translate(-1.5 -4) scale(.95)"><path d="M32 58C14 46 5 36.5 5 25 5 16.7 11.3 10.5 19.3 10.5c5.4 0 10 2.9 12.7 7.4 2.7-4.5 7.3-7.4 12.7-7.4C52.7 10.5 59 16.7 59 25 59 36.5 50 46 32 58z" fill="url(#lh-heart)"/></g><path d="M9.5 18.5c.7-3.8 3.6-6.3 7.4-6.3" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.8" stroke-linecap="round"/><g transform="translate(-7 -16)"><path d="M48.6 48.6l8.6 8.6" stroke="#1c2434" stroke-width="6.6" stroke-linecap="round"/><path d="M48.6 48.6l8.6 8.6" stroke="#f4f7fb" stroke-width="3.8" stroke-linecap="round"/><circle cx="42" cy="42" r="10.5" fill="#11182b"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="#1c2434" stroke-width="4.2"/><circle cx="42" cy="42" r="10.5" fill="none" stroke="url(#lh-rim)" stroke-width="2.3"/><path d="M33.6 42.4h3l1.8-4.2 2.7 8.4 2.1-5.6 1.3 1.4h3.9" fill="none" stroke="#22c55e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
       <div><b>Lyfe Health <span>Check-In</span></b></div>
     </a>
     <div class="who">
@@ -412,7 +422,7 @@ async function refreshWeek() {
     <div class="tile"><div class="v">${Math.round(steps).toLocaleString()}</div><div class="l">steps a day</div></div>`;
   document.querySelectorAll("#tiles .tile").forEach(t => { t.classList.add("spotlight"); countUp(t.querySelector(".v")); });
   stagger($("#tiles").children);
-  const W = 520, H = 170, L = 26, n = rows.length, bw = (W - L) / Math.max(n, 1), y = v => H - 22 - (v / 10) * (H - 34);
+  const W = 520, H = 225, L = 26, n = rows.length, bw = (W - L) / Math.max(n, 1), y = v => H - 22 - (v / 10) * (H - 34);
   const bars = rows.map((r, i) => {
     const v = r.minutes_asleep ? r.minutes_asleep / 60 : null, x = L + i * bw, now = i >= n - 7;
     return v == null ? "" : `<rect x="${x + 1.5}" y="${y(v)}" width="${Math.max(bw - 3, 2)}" height="${y(0) - y(v)}" rx="3" fill="${now ? "#ff7a45" : "#3b4f7a"}"><title>${r.day}: ${v.toFixed(1)} h</title></rect>`;
