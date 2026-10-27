@@ -73,7 +73,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 @media (max-width:1020px){.main{grid-template-columns:1fr}}
 .feed{display:flex;flex-direction:column;gap:22px;min-width:0}
 .ask{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:-44px;box-shadow:0 12px 32px rgba(15,27,51,.14);position:relative}
-.ask h2{font:600 1.15rem var(--display);margin:0 0 10px}
+.ask h2{font:600 1.3rem var(--display);margin:0;text-wrap:balance}
+.asksub{margin:4px 0 14px;color:var(--muted);font-size:.98rem;max-width:62ch}
 .askrow{display:flex;gap:10px;align-items:stretch}
 .ask textarea{flex:1;min-width:0;min-height:96px;max-height:360px;resize:vertical;line-height:1.5;border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--bg);font-size:1.02rem}
 .go{background:var(--sun);color:#fff;border:0;border-radius:12px;padding:0 22px;font:600 1rem var(--display);cursor:pointer;white-space:nowrap}
@@ -84,7 +85,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 14px;text-align:left;cursor:pointer;display:grid;gap:4px}
 .chip b{font-weight:600;font-size:.95rem;line-height:1.35}
-.chip .facts{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:4px}
+.chip{display:flex;flex-direction:column}
+.chip .facts{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:auto;padding-top:10px}
 .chip .facts small{width:100%;font:600 .66rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .chip .facts i{font-style:normal;font-size:.78rem;font-weight:600;background:var(--sun-soft);color:var(--sun-ink);border-radius:999px;padding:2px 9px}
 .chip:hover,.chip:focus-visible{border-color:var(--sun)}
@@ -309,14 +311,15 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
 <div class="wrap main" id="page-checkin" data-page="checkin" role="tabpanel" aria-labelledby="tab-checkin">
   <div class="feed">
     <div class="ask">
-      <h2>What's going on with your body?</h2>
+      <h2 id="greet">How are you feeling today?</h2>
+      <p class="asksub" id="greetsub">Tell me how you've been, or start with one of the ideas below.</p>
       <div class="askrow">
-        <textarea id="question" rows="3" placeholder="Describe it in your own words. For example: the soles of my feet feel like stinging needles"></textarea>
-        <button class="go" id="go">Check in</button>
+        <textarea id="question" rows="3" placeholder="Tell me in your own words, like you'd tell a friend. For example: I've been tired every afternoon this week"></textarea>
+        <button class="go" id="go">Let's talk</button>
         <button class="newtopic" id="newtopic" hidden>New conversation</button>
       </div>
       <div class="suggest" id="suggest" hidden>
-        <h3>Suggested from your week</h3>
+        <h3>Ideas from your week</h3>
         <div class="chips" id="chips"></div>
       </div>
     </div>
@@ -420,6 +423,12 @@ async function refreshWeek() {
   const short = sl.filter(m => m < 420).length;
   const first = last7[0]?.day, lastDay = last7[last7.length - 1]?.day;
   weekRange = first ? `${fmt(first)} to ${fmt(lastDay)}` : "";
+  // Open like a person checking in: the time of day, then one thing from their own week.
+  const hr = new Date().getHours(), part = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
+  $("#greet").textContent = `${part}. How are you feeling today?`;
+  $("#greetsub").textContent = sleep == null ? "Tell me how you've been, or start with one of the ideas below."
+    : sleep < 7 ? `Your sleep's been on the short side this week, about ${sleep.toFixed(1)} hours a night. Tell me how you've been, or start with one of the ideas below.`
+    : `You've been sleeping well this week. Anything on your mind? Tell me in your own words, or start with an idea below.`;
   $("#range").textContent = first ? `${fmt(first)} to ${fmt(lastDay)} · person ${users.find(u => u.user_id === $("#user").value)?.n ?? ""}` : "No data for this week";
   $("#hello").innerHTML = sleep == null ? "Here's your week." : sleep >= 7 ? "You slept well this week." : `You slept <em>${sleep.toFixed(1)} hours</em> a night this week.`;
   blurWords($("#hello"));
@@ -582,7 +591,7 @@ let convo = null;  // {el, turns: [{role, content, kind}]}
 
 function newTopic() {
   convo = null;
-  $("#question").placeholder = PLACEHOLDER; $("#go").textContent = "Check in"; $("#newtopic").hidden = true;
+  $("#question").placeholder = PLACEHOLDER; $("#go").textContent = "Let's talk"; $("#newtopic").hidden = true;
 }
 
 function replyMode(placeholder, button) {
