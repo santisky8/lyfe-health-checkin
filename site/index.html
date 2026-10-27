@@ -243,14 +243,14 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
     <h2 style="margin-top:12px">Nine steps, all shown to the user</h2>
     <p class="lead" style="max-width:40em">The app shows each step as it happens: the safety check, what it looked up, what it remembered and which AI model wrote the answer. Nothing is hidden.</p>
     <ol class="steps">
-      <li><h3>Danger signs first</h3><p>Chest pain, stroke signs, self-harm and similar go straight to emergency help, with no model call.</p><span class="tag s">Safety filter</span></li>
-      <li><h3>Questions first</h3><p>When the safe answer depends on a missing detail, up to three tap-to-answer questions come first.</p><span class="tag n">Nemotron</span></li>
+      <li><h3>Danger signs first</h3><p>Plain rules catch chest pain, stroke signs, overdoses and self-harm, then Nemotron Safety Guard screens the rest. Either one goes straight to emergency help.</p><span class="tag s">Safety rules + Nemotron</span></li>
+      <li><h3>Questions first</h3><p>When the safe answer depends on a missing detail, up to three tap-to-answer questions come first. A remedy question always asks how you take it.</p><span class="tag n">Nemotron</span></li>
       <li><h3>Possible causes</h3><p>Your words become up to four standard condition names. They are search terms, not a diagnosis.</p><span class="tag n">Nemotron Bolt</span></li>
       <li><h3>Trusted pages + your week</h3><p>1,016 MedlinePlus topics, MyHealthfinder action guides, NIH herb pages and your Fitbit week.</p><span class="tag z">Zetaris</span></li>
       <li><h3>Live research</h3><p>PubMed is searched at question time for a recent systematic review on each cause.</p><span class="tag p">PubMed</span></li>
       <li><h3>Recall past check-ins</h3><p>What you asked and tried before, and when, so the advice builds on it.</p><span class="tag m">Meterless H-MEM</span></li>
       <li><h3>Answer with sources</h3><p>Possible causes, what to do now, what the research says and when to see a doctor. Each point has a small tag you can tap to see where it came from: a health page, your own sleep data or a past check-in.</p><span class="tag n">Nightshift + Nemotron</span></li>
-      <li><h3>Check every line</h3><p>Lines without a source are matched by meaning to a source sentence, or removed. Every decision is logged.</p><span class="tag s">Check-In</span></li>
+      <li><h3>Check every line</h3><p>A line without a source needs a source sentence close in meaning that shares its key words, or it is removed. Every decision is logged.</p><span class="tag s">Check-In</span></li>
       <li><h3>Remember it</h3><p>The check-in is saved with its sources, so next week's check-in can ask how it went.</p><span class="tag m">Meterless H-MEM</span></li>
     </ol>
   </div>
@@ -346,7 +346,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
 <section class="end">
   <div class="wrap">
     <h2>Try it yourself</h2>
-    <p>The live demo runs on the builder's own computers: Zetaris, H-MEM and the Nightshift companion on one Linux laptop, with Nemotron reached through Nightshift's web hotspot. If it is offline, the screenshots above and the code on GitHub show everything it does.</p>
+    <p>The live demo runs on the builder's own laptop: Zetaris, H-MEM and the Nightshift companion on one Linux laptop, with Nemotron reached through Nightshift's web hotspot. If it is offline, the screenshots above and the code on GitHub show everything it does.</p>
     <div class="cta">
       <a class="btn primary live-btn" href="#" target="_blank" rel="noopener" aria-disabled="true">Try the live demo</a>
       <a class="btn ghost" href="https://github.com/santisky8/lyfe-health-checkin" target="_blank" rel="noopener">Code on GitHub</a>
