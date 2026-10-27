@@ -307,6 +307,19 @@ pre{background:var(--code);border-radius:8px;padding:8px 10px;font:11.5px/1.5 va
 .links{display:flex;flex-wrap:wrap;gap:8px}
 .links a{background:var(--sun);color:#fff;text-decoration:none;font-weight:600;border-radius:10px;padding:10px 16px;min-height:44px;display:inline-flex;align-items:center}
 .links a+a{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.arch{display:grid;grid-template-columns:minmax(0,1.3fr) auto minmax(0,1fr) minmax(0,.9fr);gap:14px;align-items:center}
+@media (max-width:1000px){.arch{grid-template-columns:1fr}.wire{transform:rotate(90deg);justify-self:center;margin:10px 0}}
+.node{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;align-self:stretch}
+.node.ext{border-style:dashed}
+.node .os{font:600 .7rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.node b{display:block;font:600 1.1rem var(--display);margin:4px 0 10px}
+.node ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:.9rem}
+.node li .by{margin-right:6px}
+.node .note{margin:12px 0 0;font-size:.82rem;color:var(--muted)}
+.wire{display:grid;gap:4px;justify-items:center;font-size:.72rem;color:var(--muted);text-align:center}
+.wire i{display:block;width:70px;height:2px;background:linear-gradient(90deg,var(--sun),var(--zet));position:relative}
+.wire i::before,.wire i::after{content:"";position:absolute;top:-4px;border:5px solid transparent}
+.wire i::before{left:-6px;border-right-color:var(--sun)}.wire i::after{right:-6px;border-left-color:var(--zet)}
 .next{margin:0;padding-left:1.2em;display:grid;gap:8px;max-width:70ch}
 footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padding-block:22px}
 </style>
@@ -418,6 +431,41 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <li><span class="by l">Meterless Nightshift</span><b>The answer, from evidence only</b><p>NVIDIA Nemotron writes from the sources above, citing each point. Off-topic sources are dropped first.</p></li>
       <li><span class="by">Check-In</span><b>Check every line</b><p>Uncited lines are matched by meaning to a source sentence or labelled "no source", and every decision is logged.</p></li>
     </ol>
+  </section>
+
+  <section class="asec">
+    <h2>Where it runs</h2>
+    <p class="asub">Two machines on one home network. Meterless Nightshift is a Windows app, so it runs on a second laptop and serves NVIDIA Nemotron to the Linux machine that runs everything else.</p>
+    <div class="arch">
+      <div class="node">
+        <span class="os">Linux laptop</span>
+        <b>Check-In agent</b>
+        <ul>
+          <li><span class="by">Python</span> the agent and the web app</li>
+          <li><span class="by z">Zetaris</span> Lightning in Docker: health library and Fitbit data, by SQL</li>
+          <li><span class="by m">Meterless H-MEM</span> memory with source, confidence and history</li>
+          <li><span class="by">Ollama</span> local embeddings, to match sources by meaning</li>
+        </ul>
+      </div>
+      <div class="wire" aria-hidden="true"><span>question + evidence</span><i></i><span>answer, streamed</span></div>
+      <div class="node">
+        <span class="os">Windows laptop</span>
+        <b>Meterless Nightshift</b>
+        <ul>
+          <li><span class="by l">NVIDIA Nemotron</span> 3 Ultra writes the answer</li>
+          <li><span class="by l">NVIDIA Nemotron</span> 3.5 Bolt lists possible causes</li>
+        </ul>
+        <p class="note">If Nightshift is off or fails, the agent calls the same models on NVIDIA's cloud and says so in "Show your work".</p>
+      </div>
+      <div class="node ext">
+        <span class="os">Online</span>
+        <b>Live sources</b>
+        <ul>
+          <li><span class="by p">PubMed</span> research reviews, searched per check-in</li>
+          <li><span class="by l">NVIDIA cloud</span> backup for Nightshift</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <section class="asec try">
