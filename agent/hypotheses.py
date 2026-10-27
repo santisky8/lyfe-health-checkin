@@ -51,6 +51,11 @@ def analyse(question):
             found["remedies"] = _names(rest)[:3]
         elif key.startswith("brand"):
             found["brands"] = _names(rest)[:2]
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if not any(found.values()) and ":" not in text and len(lines) == 3:
+        # Some hosts (NVIDIA's cloud) drop the labels and send just the three lines, in order.
+        for key, line, cap in zip(("conditions", "remedies", "brands"), lines, (4, 3, 2)):
+            found[key] = _names(line)[:cap]
     return found
 
 

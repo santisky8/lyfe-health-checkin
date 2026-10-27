@@ -12,6 +12,7 @@ import os
 import re
 import socket
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -23,11 +24,14 @@ def _is_ollama(base):
 
 
 NVIDIA_CLOUD = "https://integrate.api.nvidia.com/v1"
-_up = {"at": 0.0, "ok": True}  # last Nightshift check, so a check-in probes at most every 30 s
+_up = {"at": 0.0, "ok": True, "until": 0.0}  # last check; "until": skip Nightshift after an error
 
 
 def _primary_up(base):
-    """True when the configured server takes a connection within 2 s."""
+    """True when the configured server takes a connection within 2 s and hasn't failed a
+    request in the last 5 minutes."""
+    if time.time() < _up["until"]:
+        return False
     if time.time() - _up["at"] > 30:
         url = urllib.parse.urlsplit(base)
         try:
@@ -77,7 +81,15 @@ def chat(messages, stream=False, max_tokens=None, model=None, temperature=0.2):
         headers = {"Content-Type": "application/json",
                    "Authorization": f"Bearer {key}"}
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
-    resp = urllib.request.urlopen(req, timeout=timeout)
+    try:
+        resp = urllib.request.urlopen(req, timeout=timeout)
+    except (urllib.error.HTTPError, urllib.error.URLError):
+        # Nightshift is up but failing (for example NVIDIA refused the key saved in it): skip
+        # it for 5 minutes and send this request to NVIDIA's cloud instead.
+        if base == NVIDIA_CLOUD or not os.environ.get("NVIDIA_API_KEY"):
+            raise
+        _up["until"] = time.time() + 300
+        return chat(messages, stream, max_tokens, model, temperature)
     if not stream:
         with resp:
             data = json.load(resp)
