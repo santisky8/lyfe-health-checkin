@@ -30,8 +30,9 @@ DANGER = [
     r"cough(ing)? (up )?blood|vomit(ing)? blood|blood in (my )?(stool|poo)",
     r"seizure|convuls|\b(having|had) (a )?fits?\b|\bfitting\b",
     r"suicid|kill myself|end my life|self[- ]harm|hurt myself",
-    r"overdos|took too many (pills|tablets|capsules|meds|medicines?|medications?|doses)",
-    r"(lethal|fatal|deadly) (dose|amount)|how many .{0,30}(kill|be fatal|be lethal|to die)",
+    # "took too many Tylenol" counts; "took too many steps / breaks / naps" doesn't.
+    r"overdos|took (way )?too (many|much)\b(?! (steps|hours|time|naps?|days|breaks|sun|photos))",
+    r"(lethal|fatal|deadly) (dose|amount)|how (many|much) .{0,30}(kill|be fatal|be lethal|to die)",
     r"severe allergic|throat (swelling|closing)|anaphyla",
     r"sudden(ly)? (numb|weak|can'?t move|lost (my )?(vision|sight))",
     r"(stiff neck|rash).{0,40}fever|fever.{0,40}(stiff neck|rash)",
@@ -40,9 +41,12 @@ DANGER = [
     r"(sudden|can'?t) (see|speak)|lost (my )?(vision|speech)",
 ]
 _DANGER = re.compile("|".join(DANGER), re.IGNORECASE)
+# Never cancelled by a denial nearby: "I'm not ok and want to end my life". An overdose can
+# be denied ("I didn't overdose"), so it is left to the usual negation check.
 _SELF_HARM = re.compile(
-    r"suicid|kill myself|end my life|self[- ]harm|hurt myself|overdos|took too many|"
-    r"(lethal|fatal|deadly) (dose|amount)|how many", re.IGNORECASE)
+    r"suicid|kill myself|end my life|self[- ]harm|hurt myself|"
+    r"(lethal|fatal|deadly) (dose|amount)|how (many|much) .{0,30}(kill|be fatal|be lethal|to die)",
+    re.IGNORECASE)
 # "No chest pain, just tired": a sign the person rules out in the same clause doesn't count.
 # "not sure" doesn't deny anything, and a new clause ("no fever but chest pain") ends a denial.
 _NEGATED = re.compile(r"\b(no|not(?! sure| certain)|without|never|don'?t have|isn'?t|wasn'?t)\b"

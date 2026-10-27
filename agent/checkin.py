@@ -39,7 +39,8 @@ ROUTES = {
     "water": ["hydration"], "thirst": ["hydration"], "stress": ["stress"], "anxious": ["stress"],
     "headache": ["headache", "hydration"], "weight": ["weight", "physical activity"],
     "back": ["back pain", "physical activity"], "alcohol": ["alcohol"], "drink": ["hydration"],
-    "beer": ["alcohol"], "wine": ["alcohol"],
+    "beer": ["alcohol"], "wine": ["alcohol"], "whisk": ["alcohol"], "vodka": ["alcohol"],
+    "liquor": ["alcohol"], "booze": ["alcohol"], "cocktail": ["alcohol"], "hangover": ["alcohol"],
 }
 
 SYSTEM = """You are Check-In, a warm, honest health guide. You never diagnose, never treat, and
@@ -337,9 +338,10 @@ def remedy_facts(name, limit=3):
 
 
 EVIDENCE_WAIT = 20  # seconds to wait for PubMed and H-MEM once the Zetaris queries are done
-# One shared pool for that background work, so a burst of check-ins queues instead of starting
+# Shared pools for that background work, so a burst of check-ins queues instead of starting
 # threads (and H-MEM Node processes) without limit.
-EVIDENCE_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="evidence")
+PUBMED_POOL = ThreadPoolExecutor(max_workers=6, thread_name_prefix="pubmed")
+RECALL_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="recall")  # never stuck behind PubMed
 
 
 def find_reviews(terms, context):
@@ -399,11 +401,11 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
     wanted += ([([hyps[0]], hyps[0], generic[0])] if generic and hyps
                else [([h], h, None) for h in hyps[:3]])
     # One after another: PubMed allows 3 requests a second without a key.
-    reviews = EVIDENCE_POOL.submit(lambda: [(about, find_reviews(terms, context))
+    reviews = PUBMED_POOL.submit(lambda: [(about, find_reviews(terms, context))
                                    for terms, about, context in wanted])
     # copy_context: the public demo's visitor id lives in a context variable, and without it
     # recall would read the shared demo memory instead of this visitor's own.
-    recall = EVIDENCE_POOL.submit(contextvars.copy_context().run, memory.relevant, user_id,
+    recall = RECALL_POOL.submit(contextvars.copy_context().run, memory.relevant, user_id,
                                   question, 8)
     topics = topics_for(question)
     summary = user_summary(user_id, as_of=as_of) if is_personal(question) else None
@@ -613,8 +615,9 @@ _STOP = set("about after again also because before being could doctor does doing
 
 
 def _words(text):
-    """Content words, cut to five letters so "sleeping" meets "sleep" and "hours" meets "hour"."""
-    return {w[:5] for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in _STOP}
+    """Content words without a plural s, cut to five letters, so "sleeping" meets "sleep" and
+    "hours" meets "hour"."""
+    return {w.rstrip("s")[:5] for w in re.findall(r"[a-z]{4,}", text.lower()) if w not in _STOP}
 
 
 def _shares(line, passage, at_least=2):

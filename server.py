@@ -157,11 +157,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.wfile.write(b'{"live": true}')
             if url.path == "/api/users":
                 return self._send(200, users())
-            if url.path == "/api/log":
-                return self._send(200, log(person(q["user"]), day(q.get("as_of"))))
             if (url.path in ("/api/log", "/api/suggest", "/api/memory")
                     and not allowed("memory", self._caller())):
                 return self._send(429, {"error": "Too many requests. Please wait a minute."})
+            if url.path == "/api/log":
+                return self._send(200, log(person(q["user"]), day(q.get("as_of"))))
             if url.path == "/api/suggest":
                 return self._send(200, checkin.suggestions(person(q["user"]), day(q.get("as_of"))))
             if url.path == "/api/memory":

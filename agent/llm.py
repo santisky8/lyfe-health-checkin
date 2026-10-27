@@ -87,7 +87,8 @@ def _leaked(text):
 def _chat(messages, stream, max_tokens, model, temperature):
     base, key, _ = _route()
     model = model or os.environ.get("LLM_MODEL", "default")
-    timeout = int(os.environ.get("LLM_TIMEOUT", "180"))  # Ultra can think for a minute or two
+    # Ultra can think for a minute or two; a CPU-only Ollama can take longer
+    timeout = int(os.environ.get("LLM_TIMEOUT", "600" if _is_ollama(base) else "180"))
     if _is_ollama(base):
         url = base.removesuffix("/v1") + "/api/chat"
         options = {"temperature": temperature}
