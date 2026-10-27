@@ -36,6 +36,7 @@ PUBLIC = os.environ.get("PUBLIC") == "1"
 _prepared = {}  # evidence waiting for /api/stream, by id; oldest dropped past MAX_WAITING
 MAX_WAITING = 100
 _lock = threading.Lock()
+EMBEDDERS = "https://santisky8.github.io https://lyfe-health-checkin.netlify.app"
 # Public mode: limits per caller and in total, so nobody can spend the NVIDIA key or fill the
 # disk with memory folders by looping on the API. (max requests, per seconds)
 LIMITS = {"model": [(10, 60), (300, 86400)], "memory": [(60, 60), (3000, 86400)]}
@@ -113,7 +114,10 @@ class Handler(BaseHTTPRequestHandler):
         found = re.search(r"(?:^|;\s*)lhv=([0-9a-f]{16})\b", self.headers.get("Cookie", ""))
         vid = found.group(1) if found else secrets.token_hex(8)
         if not found:
-            self._cookie = f"lhv={vid}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax"
+            # SameSite=None + Partitioned: the cookie also works when the showcase site embeds
+            # the app, kept separate per embedding site.
+            self._cookie = (f"lhv={vid}; Path=/; Max-Age=2592000; HttpOnly; Secure; "
+                            "SameSite=None; Partitioned")
         memory.visitor.set(vid)
 
     def _caller(self):
@@ -125,6 +129,8 @@ class Handler(BaseHTTPRequestHandler):
     def _headers(self, code, kind):
         self.send_response(code)
         self.send_header("Content-Type", kind)
+        if kind.startswith("text/html"):  # only the showcase sites may embed the app
+            self.send_header("Content-Security-Policy", f"frame-ancestors 'self' {EMBEDDERS}")
         if self._cookie:
             self.send_header("Set-Cookie", self._cookie)
 
