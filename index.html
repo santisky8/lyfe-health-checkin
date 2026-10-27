@@ -118,6 +118,8 @@ figcaption{font-size:15px;color:var(--muted);margin-top:12px}
 .end h2{color:var(--night-ink)}
 .end p{color:var(--night-muted);max-width:36em;margin:16px auto 28px}
 .end .cta,.end .live{justify-content:center}
+.app-frame{margin:32px auto 0;max-width:1240px;border-radius:16px;overflow:hidden;box-shadow:0 30px 80px #0008,0 0 0 1px #ffffff1a;background:#fff}
+.app-frame iframe{display:block;width:100%;height:min(860px,85vh);border:0}
 footer{background:var(--night);color:var(--night-muted);font-size:14px;border-top:1px solid #ffffff14;padding:24px 0}
 footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
 
@@ -291,6 +293,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
       <a class="btn ghost" href="https://github.com/santisky8/lyfe-health-checkin" target="_blank" rel="noopener">Code on GitHub</a>
     </div>
     <p class="live"><i></i><span class="live-text">Checking whether the live demo is up…</span></p>
+    <div class="app-frame" hidden></div>
   </div>
 </section>
 </main>
@@ -318,11 +321,17 @@ function show(up) {
   document.querySelectorAll(".live").forEach(el => {
     el.classList.toggle("on", up === true);
     el.querySelector(".live-text").textContent = up === true
-      ? "Live now. Answers take about 30 seconds."
+      ? "Live now: try it below, or open it full screen. Answers take about 30 seconds."
       : up === false
       ? "The live demo runs on the builder's laptop and is offline now. The video, screenshots and code show what it does."
       : "The live demo runs on the builder's laptop. If it doesn't open, the video, screenshots and code show what it does.";
   });
+  // Live: run the real app right here, so judges can try it without leaving the page.
+  const frame = document.querySelector(".app-frame");
+  if (up === true && !frame.firstChild) {
+    frame.innerHTML = `<iframe title="Lyfe Health Check-In, live" src="${DEMO}/" loading="lazy"></iframe>`;
+  }
+  frame.hidden = up !== true;
   document.querySelectorAll(".live-btn").forEach(a => {
     if (up === false) { a.setAttribute("aria-disabled", "true"); a.textContent = "Live demo offline"; }
     else { a.href = DEMO; a.removeAttribute("aria-disabled"); a.textContent = "Try the live demo"; }
