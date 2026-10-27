@@ -82,8 +82,8 @@ Rules: a source counts only if its text supports the claim; skip sources that ar
 If the question asks why something seemed to work, explain honestly and kindly what the
 evidence says, including placebo, natural ups and downs, and other changes made at the same
 time. Cite every claim with [n] for a source, [log] for their numbers, [m1], [m2] for past
-check-ins. Every cause, step, warning sign and research fact needs at least one [n]; give
-only steps and warning signs a source supports, fewer is better than unsourced: [log] and [m1] show
+check-ins. Every cause, step, warning sign and research fact needs at least one [n]; any line
+without one is removed before the person sees it, so give only what a source supports: [log] and [m1] show
 what applies to this person, never why something is true. If past check-ins are given, say what
 changed since then. Past check-ins only
 say what was asked, tried and suggested before: never use them as evidence for a medical
@@ -569,6 +569,28 @@ def ground(text, sources):
     return text, added
 
 
+def drop_unsourced(text):
+    """Remove causes, steps and warning signs that no source supports: an unsourced line would
+    put the whole answer's credibility in doubt. A section left with nothing says so plainly.
+    Returns the text and how many lines were removed."""
+    loose = _loose_lines(text)
+    for ln in loose:
+        text = text.replace(ln + "\n", "", 1) if ln + "\n" in text else text.replace(ln, "", 1)
+    parts = re.split(r"(^[ \t]*\*\*(?:Possible causes|What you can do now|See a doctor)[^\n]*\n)", text,
+                     flags=re.M | re.I)
+    for i in range(1, len(parts) - 1, 2):
+        body = re.split(r"^[ \t]*(?:#{1,4}[ \t]*)?\*\*[^*\n]{3,40}\*\*", parts[i + 1], maxsplit=1, flags=re.M)
+        items = [ln for ln in body[0].splitlines() if LIST_ITEM.match(ln) and not VISIT.match(ln)]
+        if items:
+            continue
+        if parts[i].lower().lstrip(" *").startswith("see a doctor"):  # never leave it without one
+            parts[i + 1] = "If this lasts, gets worse or worries you, see a doctor.\n" + parts[i + 1]
+        elif not body[0].strip():
+            parts[i + 1] = ("The trusted sources found don't cover this. A doctor or pharmacist "
+                            "can help.\n\n") + parts[i + 1]
+    return "".join(parts), len(loose)
+
+
 def unsourced(text):
     """How many causes, steps and warning signs cite no source [n]. Lines that only say what
     to tell the doctor are advice about the visit, not health facts, so they don't count."""
@@ -595,11 +617,11 @@ def finish(prep, text):
     if matched:
         decisions.append(f"Cited {matched} line{'s' if matched > 1 else ''} the model left uncited "
                          "to the source passage that says the same thing")
+    text, removed = drop_unsourced(text)
+    if removed:
+        decisions.append(f"Removed {removed} line{'s' if removed > 1 else ''} that no trusted source "
+                         "supported")
     numbers = cited(text)
-    loose = unsourced(text)
-    if loose:
-        decisions.append(f"{loose} cause{'s' if loose > 1 else ''}, step{'s' if loose > 1 else ''} or warning sign{'s' if loose > 1 else ''} "
-                         "had no source, so the page marks them as general advice")
     if prep["sources"]:
         decisions.append(f"The answer cites {len(numbers)} of {len(prep['sources'])} sources; "
                          "only those are listed")

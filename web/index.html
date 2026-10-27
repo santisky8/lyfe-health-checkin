@@ -413,7 +413,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
   <section class="asec">
     <h2>What makes it different</h2>
     <div class="acards">
-      <div><b>Every point has a source</b><p>Causes, steps and warning signs link to MedlinePlus, MyHealthfinder, NCCIH or a PubMed review. Anything the agent can't source is labelled "no source".</p></div>
+      <div><b>Every point has a source</b><p>Causes, steps and warning signs link to MedlinePlus, MyHealthfinder, NCCIH or a PubMed review. Anything no source supports is left out of the answer.</p></div>
       <div><b>It starts from your data</b><p>It reads your own Fitbit week and suggests what to ask, with the facts behind each idea, before you type a word.</p></div>
       <div><b>It remembers and follows up</b><p>Each check-in and note is kept with its source, confidence and date, so next time it asks whether what you tried helped.</p></div>
     </div>
@@ -429,7 +429,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <li><span class="by p">PubMed</span><b>Live research</b><p>A recent systematic review for each possible cause. Case reports are skipped.</p></li>
       <li><span class="by m">Meterless H-MEM</span><b>What you told it before</b><p>Past check-ins recalled by meaning, each with a source, confidence and an append-only history.</p></li>
       <li><span class="by l">Meterless Nightshift</span><b>The answer, from evidence only</b><p>NVIDIA Nemotron writes from the sources above, citing each point. Off-topic sources are dropped first.</p></li>
-      <li><span class="by">Check-In</span><b>Check every line</b><p>Uncited lines are matched by meaning to a source sentence or labelled "no source", and every decision is logged.</p></li>
+      <li><span class="by">Check-In</span><b>Check every line</b><p>Uncited lines are matched by meaning to a source sentence or removed, and every decision is logged.</p></li>
     </ol>
   </section>
 
@@ -696,8 +696,8 @@ function lines(p, sourced = false) {
     const kind = m[1] ? "ul" : "ol";
     flush();
     if (list !== kind) { close(); html += `<${kind}>`; list = kind; }
-    // A cause or step with no [n] is the model's general knowledge: say so instead of hiding it.
-    const loose = sourced && !/\[\d+\]/.test(m[3]) && !/^(\*\*)?(tell|bring|mention|note|share|keep a|try (this|these)|track|log)\b/i.test(m[3]) ? ' <span class="nosrc" title="No source supports this line: general advice from the model">no source</span>' : "";
+    // Lines no source supports are removed by the agent before the final answer (drop_unsourced).
+    const loose = "";
     html += `<li>${inline(m[3])}${loose}</li>`;
   }
   close(); flush();
