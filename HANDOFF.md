@@ -29,7 +29,18 @@ github.com/Meterless/Meterless, engines/ folder (Apache-2.0, TypeScript, Node 24
   and topic routing, verify with SCOUT_IMPL=... npm run evals.
 - Nightshift (Windows app, unsigned) is optional; only for the NVIDIA prize.
 
-## Nightshift (done 2026-10-25, evening)
+## Nightshift Web hotspot (2026-10-27, replaces the Windows laptop)
+The agent calls a Nightshift Web Persistent Hotspot (relay on nightshift-hotspot.ns-proxy.workers.dev;
+LLM_BASE_URL and the client token LLM_API_KEY are in `.env.local`). Meterless's companion script
+(~/.local/share/nightshift-companion/, SHA-256 93e640b6..., config companion.json mode 600) runs
+`serve` and forwards to NVIDIA cloud (upstream https://integrate.api.nvidia.com/v1, key from
+NVIDIA_API_KEY, models nemotron-3-ultra-550b-a55b and nemotron-3.5-bolt-e4b). Quirks handled in
+agent/llm.py: Cloudflare refuses Python's default User-Agent (error 1010); the relay's default
+max_tokens is short, so a limit is always sent; about 1 Ultra reply in 3 arrives with its
+reasoning in front, so reasoning models are asked non-streamed and retried. The hotspot and its
+tokens are managed in Brave at https://meterless.ai/Nightshift/WEB/ (Setup > hotspot).
+
+## Nightshift (done 2026-10-25, evening) (old setup)
 Runs on the Windows laptop (Win10, 940MX 2 GB: too weak for local models, so it serves NVIDIA
 cloud Nemotron through the user's nvapi key saved in Nightshift). Hotspot mode on, Wi-Fi Private,
 firewall rule "Nightshift 8088 LAN" (TCP 8088, Private, 192.168.0.0/24). The laptop must stay

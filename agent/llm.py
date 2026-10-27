@@ -29,13 +29,14 @@ _up = {"at": 0.0, "ok": True, "until": 0.0}  # last check; "until": skip Nightsh
 
 def _primary_up(base):
     """True when the configured server takes a connection within 2 s and hasn't failed a
-    request in the last 5 minutes."""
+    request in the last minute."""
     if time.time() < _up["until"]:
         return False
     if time.time() - _up["at"] > 30:
         url = urllib.parse.urlsplit(base)
         try:
-            socket.create_connection((url.hostname, url.port or 80), timeout=2).close()
+            port = url.port or (443 if url.scheme == "https" else 80)
+            socket.create_connection((url.hostname, port), timeout=2).close()
             _up["ok"] = True
         except OSError:
             _up["ok"] = False
@@ -61,6 +62,29 @@ def via():
 
 def chat(messages, stream=False, max_tokens=None, model=None, temperature=0.2):
     """Return the reply text, or with stream=True a generator of text pieces."""
+    if model is None and _thinks():
+        # A reasoning model's answer is held back until it is complete anyway (see _pieces),
+        # so it is asked for whole. Through Nightshift's web hotspot about one reply in three
+        # arrives with the model's reasoning in front of the answer: ask again, and if every
+        # try leaks, keep only what follows the first section heading.
+        for _ in range(3):
+            text = _chat(messages, False, max_tokens, None, temperature)
+            if not _leaked(text):
+                break
+        else:
+            heading = re.search(r"(?m)^[ \t]*\*\*[^*\n]{3,60}\*\*", text)
+            text = text[heading.start():] if heading else text
+        return iter([text]) if stream else text
+    return _chat(messages, stream, max_tokens, model, temperature)
+
+
+def _leaked(text):
+    """True when the reply opens with the model's own reasoning ("The user is asking...")
+    instead of the answer, which always speaks to the person as "you"."""
+    return text.lstrip().lower().startswith(("the user", "we need", "okay", "let me", "i need"))
+
+
+def _chat(messages, stream, max_tokens, model, temperature):
     base, key, _ = _route()
     model = model or os.environ.get("LLM_MODEL", "default")
     timeout = int(os.environ.get("LLM_TIMEOUT", "600"))
@@ -74,22 +98,25 @@ def chat(messages, stream=False, max_tokens=None, model=None, temperature=0.2):
         headers = {"Content-Type": "application/json"}
     else:
         url = base + "/chat/completions"
+        # Always send a limit: Nightshift's web hotspot applies a short default, which cuts
+        # Nemotron Ultra off mid-reasoning so the unfinished reasoning arrives as the answer.
         body = {"model": model, "messages": messages, "stream": stream,
-                "temperature": temperature}
-        if max_tokens:
-            body["max_tokens"] = max_tokens
-        headers = {"Content-Type": "application/json",
-                   "Authorization": f"Bearer {key}"}
+                "temperature": temperature,
+                "max_tokens": max_tokens or int(os.environ.get("LLM_MAX_TOKENS", "8192"))}
+        # Nightshift's web hotspot sits behind Cloudflare, which refuses Python's default
+        # User-Agent (error 1010), so the agent names itself.
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {key}",
+                   "User-Agent": "lyfe-health-checkin/1.0"}
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers)
     try:
         resp = urllib.request.urlopen(req, timeout=timeout)
     except (urllib.error.HTTPError, urllib.error.URLError):
         # Nightshift is up but failing (for example NVIDIA refused the key saved in it): skip
-        # it for 5 minutes and send this request to NVIDIA's cloud instead.
+        # it for a minute and send this request to NVIDIA's cloud instead.
         if base == NVIDIA_CLOUD or not os.environ.get("NVIDIA_API_KEY"):
             raise
-        _up["until"] = time.time() + 300
-        return chat(messages, stream, max_tokens, model, temperature)
+        _up["until"] = time.time() + 60
+        return _chat(messages, stream, max_tokens, model, temperature)
     if not stream:
         with resp:
             data = json.load(resp)

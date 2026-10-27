@@ -436,7 +436,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
 
   <section class="asec">
     <h2>Where it runs</h2>
-    <p class="asub">Two machines on one home network. Meterless Nightshift is a Windows app, so it runs on a second laptop and serves NVIDIA Nemotron to the Linux machine that runs everything else.</p>
+    <p class="asub">One Linux laptop runs the agent. Meterless Nightshift's web hotspot gives it one address for the model, and Nightshift's companion serves NVIDIA Nemotron behind it.</p>
     <div class="arch">
       <div class="node">
         <span class="os">Linux laptop</span>
@@ -448,9 +448,9 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
           <li><span class="by">Ollama</span> local embeddings, to match sources by meaning</li>
         </ul>
       </div>
-      <div class="wire" aria-hidden="true"><span>question + evidence</span><i></i><span>answer, streamed</span></div>
+      <div class="wire" aria-hidden="true"><span>question + evidence</span><i></i><span>answer</span></div>
       <div class="node">
-        <span class="os">Windows laptop</span>
+        <span class="os">Nightshift Web hotspot</span>
         <b>Meterless Nightshift</b>
         <ul>
           <li><span class="by l">NVIDIA Nemotron</span> 3 Ultra writes the answer</li>

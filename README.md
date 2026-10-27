@@ -45,14 +45,17 @@ model.
    re-ranked by meaning; after answering, the check-in (question, causes considered,
    suggestion, source links, Zetaris rows) is saved with a source and confidence. Every
    change goes to H-MEM's append-only trust ledger.
-7. **Model through Meterless Nightshift** (`agent/llm.py`): Nightshift runs on a Windows PC on
-   the same network (Hotspot mode) and serves NVIDIA Nemotron 3 Ultra from build.nvidia.com,
-   so the question and its evidence go to NVIDIA to be answered. The user's raw log stays
-   local: only the weekly summary is sent. Any OpenAI-compatible endpoint works, including a
-   local Ollama for a fully private mode. The answer streams to the page as it is written.
-   If Nightshift doesn't answer within 2 seconds and `NVIDIA_API_KEY` is set, the same Nemotron
-   models are called on NVIDIA's own cloud instead, and "Show your work" says which one wrote
-   the answer.
+7. **Model through Meterless Nightshift** (`agent/llm.py`): the agent calls a Nightshift Web
+   Persistent Hotspot, one OpenAI-compatible address with its own client token. Nightshift's
+   companion runs on the same Linux machine as a background service and serves NVIDIA
+   Nemotron 3 Ultra and 3.5 Bolt from build.nvidia.com, so the question and its evidence go
+   to NVIDIA to be answered and the agent never holds the NVIDIA key. (Until 27 Oct it was the
+   Nightshift Windows app in Hotspot mode on a second laptop.) The user's raw log stays local:
+   only the weekly summary is sent. Any OpenAI-compatible endpoint works, including a local
+   Ollama for a fully private mode. If a reply arrives with the model's reasoning in front of
+   the answer, it is asked again. If Nightshift fails and `NVIDIA_API_KEY` is set, the same
+   Nemotron models are called on NVIDIA's own cloud instead, and "Show your work" says which
+   one wrote the answer.
 8. **Suggested questions** (`checkin.suggestions`, `/api/suggest`): fixed rules on the
    person's own week and notes suggest what to ask (sleep down from last week, under 7 hours,
    long sitting, under 150 active minutes, "did it help?" on their latest note). Each shows the
@@ -90,7 +93,7 @@ python3 agent/library.py build                  # embed the 1,016 library topics
 # zetaris/load.sql with lightning-sql.sh; then set ZETARIS_URL, ZETARIS_EMAIL and
 # ZETARIS_PASSWORD in .env.local (gitignored). Without ZETARIS_URL the agent uses SQLite.
 python3 agent/checkin.py --dry-run "Why am I tired every afternoon?"   # evidence only
-LLM_BASE_URL=http://<meterless-host>:8088/v1 LLM_API_KEY=<key> LLM_MODEL=<model> \
+LLM_BASE_URL=<nightshift hotspot>/v1 LLM_API_KEY=<client token> LLM_MODEL=<model> \
   python3 agent/checkin.py "Why am I tired every afternoon?"
 ```
 
@@ -206,6 +209,6 @@ General health information, not medical advice.
   and per day so nobody can run up the model bill). After the judging window it disables
   itself.
 - `./demo_on.sh`: starts that service and publishes port 8766 with Tailscale Funnel (the
-  Funnel setting survives reboots). Needs the Nightshift laptop running, or `NVIDIA_API_KEY`
+  Funnel setting survives reboots). Needs the Nightshift companion service running, or `NVIDIA_API_KEY`
   in `.env.local` as the backup.
 - `./demo_off.sh`: closes the Funnel and stops the service.
