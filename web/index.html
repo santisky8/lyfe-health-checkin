@@ -571,7 +571,7 @@ function weeks() {
   const last = new Date(u.last_day + "T12:00:00");
   while (d <= last) { out.push(d.toISOString().slice(0, 10)); d.setDate(d.getDate() + 7); }
   if (out[out.length - 1] !== u.last_day) out.push(u.last_day);
-  $("#asof").innerHTML = out.map((w, i) => `<option value="${w}">${i + 1} · to ${fmt(w)}</option>`).join("");
+  $("#asof").innerHTML = out.map((w, i) => `<option value="${esc(w)}">${i + 1} · to ${esc(fmt(w))}</option>`).join("");
   $("#asof").value = out[Math.min(1, out.length - 1)];
 }
 function refresh() { refreshWeek(); refreshJournal(); refreshSuggest(); }
@@ -617,7 +617,7 @@ async function refreshWeek() {
   const W = 520, H = 225, L = 26, n = rows.length, bw = (W - L) / Math.max(n, 1), y = v => H - 22 - (v / 10) * (H - 34);
   const bars = rows.map((r, i) => {
     const v = r.minutes_asleep ? r.minutes_asleep / 60 : null, x = L + i * bw, now = i >= n - 7;
-    return v == null ? "" : `<rect x="${x + 1.5}" y="${y(v)}" width="${Math.max(bw - 3, 2)}" height="${y(0) - y(v)}" rx="3" fill="${now ? "#ff7a45" : "#3b4f7a"}"><title>${r.day}: ${v.toFixed(1)} h</title></rect>`;
+    return v == null ? "" : `<rect x="${x + 1.5}" y="${y(v)}" width="${Math.max(bw - 3, 2)}" height="${y(0) - y(v)}" rx="3" fill="${now ? "#ff7a45" : "#3b4f7a"}"><title>${esc(r.day)}: ${v.toFixed(1)} h</title></rect>`;
   }).join("");
   $("#chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Hours of sleep per night">
     ${[0, 4, 8].map(v => `<text x="0" y="${y(v) + 3}">${v}h</text><line x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="#ffffff12"/>`).join("")}

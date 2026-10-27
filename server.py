@@ -15,6 +15,9 @@ import os
 import re
 import secrets
 import sys
+import hashlib
+import shutil
+import ipaddress
 import threading
 import time
 import uuid
@@ -37,9 +40,36 @@ _prepared = {}  # evidence waiting for /api/stream, by id; oldest dropped past M
 MAX_WAITING = 100
 _lock = threading.Lock()
 EMBEDDERS = "https://santisky8.github.io"
+# Assistant turns the server really sent (a question it asked or an answer it wrote), by hash.
+# The page sends the whole conversation back each time; an "assistant" turn the server never
+# issued is dropped, so nobody can slip text past the safety screen by labelling it the agent's.
+_issued = {}
+MAX_ISSUED = 20000
+
+
+def _digest(text):
+    return hashlib.sha256(str(text)[:4000].encode()).hexdigest()
+
+
+def issued(text):
+    """Remember text the server sent as the agent's own turn."""
+    with _lock:
+        _issued[_digest(text)] = True
+        while len(_issued) > MAX_ISSUED:
+            _issued.pop(next(iter(_issued)))
+
+
+def genuine(turns):
+    """Only the person's own turns, plus agent turns this server issued."""
+    return [t for t in turns if t["role"] == "user"
+            or (t["role"] == "assistant" and _digest(t["content"]) in _issued)]
+
+
 # Public mode: limits per caller and in total, so nobody can spend the NVIDIA key or fill the
 # disk with memory folders by looping on the API. (max requests, per seconds)
-LIMITS = {"model": [(10, 60), (300, 86400)], "memory": [(60, 60), (3000, 86400)]}
+# Totals are mostly hourly, so a flood locks everyone out for an hour at most, not a day.
+LIMITS = {"model": [("each", 10, 60), ("all", 60, 3600), ("all", 600, 86400)],
+          "memory": [("each", 60, 60), ("all", 1500, 3600)]}
 _hits = {}  # (kind, caller or "all", window) -> request times inside that window
 
 
@@ -48,8 +78,8 @@ def allowed(kind, caller):
     if not PUBLIC:
         return True
     now = time.time()
-    (each, per), total = LIMITS[kind]
-    windows = [((kind, caller, per), each, per), ((kind, "all", total[1]), total[0], total[1])]
+    windows = [((kind, caller if who == "each" else "all", secs), most, secs)
+               for who, most, secs in LIMITS[kind]]
     with _lock:
         if len(_hits) > 10000:  # many callers: forget their windows, never the totals
             for key in [k for k in _hits if k[1] != "all"]:
@@ -106,6 +136,10 @@ def log(user_id, as_of, days=28):
 
 
 class Handler(BaseHTTPRequestHandler):
+    timeout = 20  # a client that stops sending mid-request can't hold a thread forever
+    server_version = "lyfe-health-checkin"  # no Python version in the Server header
+    sys_version = ""
+
     def _start(self):
         """Public mode: find or make this visitor's id and point H-MEM at their own memory."""
         self._cookie = None
@@ -124,13 +158,28 @@ class Handler(BaseHTTPRequestHandler):
         """Who is asking: Funnel forwards every request from 127.0.0.1 and appends the real
         address to X-Forwarded-For. Earlier entries come from the caller and can be faked, so
         only the last one counts."""
-        return self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[-1].strip()
+        ip = self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[-1].strip()
+        try:  # one IPv6 user can hold a whole /64, so count the /64 as one caller
+            addr = ipaddress.ip_address(ip)
+            return str(ipaddress.ip_network(f"{ip}/64", strict=False)) if addr.version == 6 else ip
+        except ValueError:
+            return ip
+
+    def _cross_site(self):
+        """True for a POST from another site (CSRF), or one that isn't JSON: the app always
+        sends JSON from its own address, and only the showcase site may embed it."""
+        origin = self.headers.get("Origin")
+        own = {f"https://{self.headers.get('Host', '')}", f"http://{self.headers.get('Host', '')}"}
+        bad_origin = origin is not None and origin not in own | set(EMBEDDERS.split())
+        return bad_origin or not self.headers.get("Content-Type", "").startswith("application/json")
 
     def _headers(self, code, kind):
         self.send_response(code)
         self.send_header("Content-Type", kind)
         if kind.startswith("text/html"):  # only the showcase sites may embed the app
             self.send_header("Content-Security-Policy", f"frame-ancestors 'self' {EMBEDDERS}")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
         if self._cookie:
             self.send_header("Set-Cookie", self._cookie)
 
@@ -181,18 +230,27 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self._start()
-        size = int(self.headers.get("Content-Length", 0))
+        try:
+            size = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            return self._send(400, {"error": "bad request"})
         if size < 0 or size > 65536:
             return self._send(413, {"error": "message too long"})
+        if PUBLIC and self._cross_site():
+            return self._send(403, {"error": "forbidden"})
         kind = {"/api/turn": "model", "/api/note": "memory"}.get(self.path)
         if kind and not allowed(kind, self._caller()):
             return self._send(429, {"error": "Too many requests. Please wait a minute."})
         try:
             body = json.loads(self.rfile.read(size) or b"{}")
             if self.path == "/api/turn":
-                turns = [{"role": x["role"], "content": str(x["content"])[:4000],
-                          "kind": x.get("kind")} for x in body["turns"][-16:]]
+                turns = genuine([{"role": x["role"], "content": str(x["content"])[:4000],
+                                  "kind": x.get("kind")} for x in body["turns"][-16:]])
+                if not turns or turns[-1]["role"] != "user":
+                    raise ValueError("bad conversation")
                 prep = checkin.turn(turns, person(body["user"]), day(body.get("as_of")))
+                if prep.get("ask"):
+                    issued(prep["ask"]["q"])
                 if prep.get("urgent") is None and "sources" in prep:
                     prep["id"] = str(uuid.uuid4())
                     with _lock:
@@ -226,7 +284,9 @@ class Handler(BaseHTTPRequestHandler):
             for piece in checkin.stream_model(prep):
                 text += piece
                 emit({"delta": piece})
-            emit({"done": checkin.finish(prep, text)})
+            done = checkin.finish(prep, text)
+            issued(done["text"])
+            emit({"done": done})
         except Exception as e:
             sys.stderr.write(f"stream error: {e!r}\n")
             emit({"error": "Something went wrong on the demo server. Please try again."
@@ -236,6 +296,23 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write("%s\n" % (fmt % args))
 
 
+VISITOR_DAYS = 7  # public-demo visitors' memories and traces are deleted after this
+
+
+def forget_visitors():
+    """Delete public-demo visitors' memories and traces older than VISITOR_DAYS, now and every
+    six hours. The demo people's own memories (no -v suffix) are kept."""
+    while True:
+        cutoff = time.time() - VISITOR_DAYS * 86400
+        for path in [*(ROOT / "data" / "memory").glob("*-v*"), *(ROOT / "data" / "traces").glob("*-v*")]:
+            try:
+                if path.stat().st_mtime < cutoff:
+                    shutil.rmtree(path) if path.is_dir() else path.unlink()
+            except OSError:
+                pass
+        time.sleep(6 * 3600)
+
+
 if __name__ == "__main__":
     print(f"Lyfe Health Check-In on http://localhost:{PORT} (data: {store.backend()})"
           + (", public mode" if PUBLIC else ""))
@@ -243,4 +320,6 @@ if __name__ == "__main__":
     # the embedding model and the Zetaris login.
     threading.Thread(target=lambda: (users(), library.search("tired in the afternoon")),
                      daemon=True).start()
+    if PUBLIC:
+        threading.Thread(target=forget_visitors, daemon=True).start()
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

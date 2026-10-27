@@ -208,8 +208,10 @@ General health information, not medical advice.
 - `demo_service.sh`: run at login by the systemd user service `lyfe-checkin-demo`. It starts
   Docker Desktop, waits for Zetaris, then runs a public-mode copy of the app on port 8766
   (`PUBLIC=1`: each visitor gets their own H-MEM memory through a cookie, errors show no
-  details, only the 33 Fitbit people are accepted, and check-ins are rate-limited per caller
-  and per day so nobody can run up the model bill). After the judging window it disables
+  details, only the 33 Fitbit people are accepted, check-ins are rate-limited per caller and per
+  hour so nobody can run up the model bill, posts from other sites are refused, agent turns
+  the server didn't send are dropped before the safety check, and visitors' memories are
+  deleted after 7 days). `python3 -m unittest discover tests` runs the danger-sign tests. After the judging window it disables
   itself.
 - `./demo_on.sh`: starts that service and publishes port 8766 with Tailscale Funnel (the
   Funnel setting survives reboots). Needs the Nightshift companion service running, or `NVIDIA_API_KEY`

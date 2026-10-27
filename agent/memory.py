@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -24,10 +25,14 @@ def owner(user_id):
     return f"{user_id}-v{visitor.get()}" if visitor.get() else user_id
 
 
+_slots = threading.BoundedSemaphore(4)  # at most 4 Node processes at once (about 55 MB each)
+
+
 def _call(request):
     request = {**request, "user": owner(request["user"])}
-    r = subprocess.run([NODE, "--no-warnings", "--experimental-transform-types", str(CLI)],
-                       input=json.dumps(request), capture_output=True, text=True, timeout=60)
+    with _slots:
+        r = subprocess.run([NODE, "--no-warnings", "--experimental-transform-types", str(CLI)],
+                           input=json.dumps(request), capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         raise RuntimeError(f"H-MEM failed: {r.stderr.strip()[:300]}")
     return json.loads(r.stdout)
