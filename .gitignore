@@ -10,3 +10,4 @@ data/demo.pid
 # Local Netlify folder
 .netlify
 data/traces/
+data/visits.log

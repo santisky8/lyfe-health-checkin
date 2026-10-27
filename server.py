@@ -17,6 +17,7 @@ import secrets
 import sys
 import hashlib
 import shutil
+import subprocess
 import ipaddress
 import threading
 import time
@@ -202,6 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         try:
             if url.path == "/":
+                tell_owner("visit", self._caller())
                 return self._send(200, (ROOT / "web" / "index.html").read_bytes(),
                                   "text/html; charset=utf-8")
             if url.path == "/api/status":  # the showcase site checks this to show "Live now"
@@ -244,6 +246,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             body = json.loads(self.rfile.read(size) or b"{}")
             if self.path == "/api/turn":
+                if len(body.get("turns", [])) == 1:  # a new question, not a follow-up
+                    tell_owner("checkin", self._caller())
                 turns = genuine([{"role": x["role"], "content": str(x["content"])[:4000],
                                   "kind": x.get("kind")} for x in body["turns"][-16:]])
                 if not turns or turns[-1]["role"] != "user":
@@ -294,6 +298,35 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s\n" % (fmt % args))
+
+
+_told = {}  # (event, caller) -> when the owner was last notified
+NOTIFY_EVERY = 300  # seconds: one notification per event per caller in this window
+VISITS = ROOT / "data" / "visits.log"
+
+
+def tell_owner(event, caller):
+    """Public demo: a desktop notification on the laptop running the demo, and a line in
+    data/visits.log, so the owner knows when judges are trying it. Never what they asked."""
+    if not PUBLIC or os.environ.get("DEMO_NOTIFY") == "0":
+        return
+    now = time.time()
+    with _lock:
+        if now - _told.get((event, caller), 0) < NOTIFY_EVERY:
+            return
+        _told[(event, caller)] = now
+        if len(_told) > 5000:
+            _told.clear()
+    text = {"visit": "Someone opened the live demo",
+            "checkin": "Someone started a check-in"}[event]
+    try:
+        with VISITS.open("a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {event}\n")
+        subprocess.Popen(["notify-send", "-a", "Lyfe Health Check-In", "-i", "dialog-information",
+                          "Lyfe Health Check-In", text],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass  # no desktop session (for example over SSH): the log line is enough
 
 
 VISITOR_DAYS = 7  # public-demo visitors' memories and traces are deleted after this long unused
