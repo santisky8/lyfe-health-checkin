@@ -309,23 +309,27 @@ if (VIDEO) {
   document.getElementById("video").hidden = false;
 }
 
+// up: true (answered), false (answered "not live"), null (couldn't check: the browser may block
+// the check, for example on the builder's own Tailscale network, so the link stays usable).
 function show(up) {
   document.querySelectorAll(".live").forEach(el => {
-    el.classList.toggle("on", up);
-    el.querySelector(".live-text").textContent = up
+    el.classList.toggle("on", up === true);
+    el.querySelector(".live-text").textContent = up === true
       ? "Live now. Answers take about 30 seconds."
-      : "The live demo runs on the builder's laptop and is offline now. The video, screenshots and code show what it does.";
+      : up === false
+      ? "The live demo runs on the builder's laptop and is offline now. The video, screenshots and code show what it does."
+      : "The live demo runs on the builder's laptop. If it doesn't open, the video, screenshots and code show what it does.";
   });
   document.querySelectorAll(".live-btn").forEach(a => {
-    if (up) { a.href = DEMO; a.removeAttribute("aria-disabled"); a.textContent = "Try the live demo"; }
-    else { a.setAttribute("aria-disabled", "true"); a.textContent = "Live demo offline"; }
+    if (up === false) { a.setAttribute("aria-disabled", "true"); a.textContent = "Live demo offline"; }
+    else { a.href = DEMO; a.removeAttribute("aria-disabled"); a.textContent = "Try the live demo"; }
   });
 }
 async function check() {
   try {
     const r = await fetch(`${DEMO}/api/status`, {cache: "no-store", signal: AbortSignal.timeout(6000)});
-    show(r.ok && (await r.json()).live === true);
-  } catch { show(false); }
+    show(r.ok ? (await r.json()).live === true : false);
+  } catch { show(null); }
 }
 check();
 setInterval(check, 60000);
