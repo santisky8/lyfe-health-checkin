@@ -57,13 +57,13 @@ h2{font-size:clamp(28px,4vw,40px);letter-spacing:-.01em}
 @keyframes pump{0%,40%,100%{transform:scale(1)}12%{transform:scale(1.12)}24%{transform:scale(1.02)}32%{transform:scale(1.08)}}
 /* hover: the name flips up and away, the motto rotates in from below, then they swap back */
 /* the text box is exactly the heart's height, so name and motto sit on the logo's centre line */
-.brand .flip{position:relative;display:block;height:44px;perspective:600px}
+.brand .flip{position:relative;display:block;height:44px;perspective:600px;top:-2px}  /* the heart sits high in its frame: centre on the heart, not the box */
 .brand .face{display:block;height:44px;line-height:44px;white-space:nowrap;backface-visibility:hidden;transform-origin:50% 50%}
 .brand b.face{line-height:44px}
-.brand .motto{position:absolute;left:0;top:0;font:700 26px/44px var(--display);letter-spacing:-.015em;color:#f4f7fb;opacity:0;transform:translateY(60%) rotateX(-90deg)}
+.brand .motto{position:absolute;left:0;top:0;font:700 22px/44px var(--display);letter-spacing:-.015em;color:#f4f7fb;opacity:0;transform:translateY(60%) rotateX(-90deg)}
 .brand .motto i{font-style:normal;color:#22c55e}
 .brand .motto em{font-style:normal;color:var(--sun)}
-@media (max-width:760px){.brand .motto{font-size:min(26px,3.6vw)}}
+@media (max-width:760px){.brand .motto{font-size:min(22px,3.6vw)}}
 .badge{transition:opacity .3s ease}
 .top:has(.brand.play) .badge{opacity:0}  /* the long motto needs the badge's room for a moment */
 .brand.play .name{animation:name-out 3.4s cubic-bezier(.3,.7,.3,1) both}
@@ -87,9 +87,11 @@ h2{font-size:clamp(28px,4vw,40px);letter-spacing:-.01em}
 .hero>canvas.aurora{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.85;-webkit-mask-image:linear-gradient(to bottom,#000 30%,transparent 95%);mask-image:linear-gradient(to bottom,#000 30%,transparent 95%)}
 .hero>.wrap{position:relative;z-index:1}
 .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;padding:64px 0 56px}
-.hero h1{font-size:clamp(40px,6.2vw,68px);letter-spacing:-.025em;font-weight:700}
+.hero h1{font-size:clamp(40px,5.6vw,64px);letter-spacing:-.025em;font-weight:700;line-height:1.05}
+.hero h1 span{display:block;text-wrap:balance}
+.hero h1 .h1b{margin-top:14px;font-size:.56em;font-weight:500;letter-spacing:-.01em;line-height:1.2;color:#c9d3ea;max-width:20em}
 .hero h1 em{font-style:normal;color:var(--sun)}
-.hero p.lede{font-size:20px;color:#c9d3ea;max-width:34em;margin:22px 0 30px}
+.hero p.lede{font-size:18px;line-height:1.65;color:var(--night-muted);max-width:32em;margin:24px 0 32px}
 .cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .btn{display:inline-flex;align-items:center;gap:10px;font:600 16px/1 var(--display);text-decoration:none;border-radius:12px;padding:15px 20px;border:1px solid transparent;cursor:pointer}
 .btn.primary{background:var(--sun);color:#1a0d06}
@@ -152,6 +154,8 @@ figcaption{font-size:15px;color:var(--muted);margin-top:12px}
 .safe div{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px}
 .safe b{font-family:var(--display);font-size:18px;display:block;margin-bottom:4px}
 .safe span{color:var(--muted);font-size:15px}
+.next .lead-card{grid-column:1/-1;border-color:var(--sun);background:linear-gradient(135deg,var(--sun-soft),var(--surface) 70%)}
+.next .lead-card b{color:var(--sun-ink)}
 .end{background:var(--night);color:var(--night-ink);text-align:center}
 .end h2{color:var(--night-ink)}
 .end p{color:var(--night-muted);max-width:36em;margin:16px auto 28px}
@@ -194,7 +198,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
     <div class="hero-grid">
       <div>
         <p class="kicker">The agent that can explain why</p>
-        <h1 style="margin-top:14px">Ask about your body. Get the <em>why</em>, with a source for every claim.</h1>
+        <h1 style="margin-top:14px"><span class="h1a">Ask about your body.</span> <span class="h1b">Get the <em>why</em>, with a source for every claim.</span></h1>
         <p class="lede">General, basic guidance from trusted public health sites, with a link behind every claim. It reads your own sleep and activity, remembers what you tried last time, and tells you when to see a doctor. It never diagnoses.</p>
         <div class="cta">
           <a class="btn primary live-btn" href="#" target="_blank" rel="noopener" aria-disabled="true">Try the live demo</a>
@@ -319,6 +323,22 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
       <div><b>No diagnosis</b><span>It weighs possible causes and says how to tell them apart. Medicines appear only as options to ask a doctor about.</span></div>
       <div><b>Danger signs skip advice</b><span>Emergency symptoms go straight to emergency help before any model call.</span></div>
       <div><b>Private by default</b><span>Your raw log stays on your computer. Each demo visitor gets their own memory.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="pipe" id="next">
+  <div class="wrap">
+    <p class="kicker">What's next</p>
+    <h2 style="margin-top:12px">From a demo to a daily habit</h2>
+    <div class="safe next">
+      <div class="lead-card"><b>Many languages</b><span>Ask and get answers in your own language, with sources in that language where trusted ones exist, so it reaches as many people as possible.</span></div>
+      <div><b>Your own data</b><span>Apple Health, Google Fit and Fitbit sign-in instead of the sample set.</span></div>
+      <div><b>"How did it go?"</b><span>A reminder a few days after each check-in.</span></div>
+      <div><b>Inside other apps</b><span>A daily check-in for the health and fitness apps people already use.</span></div>
+      <div><b>NHS content</b><span>UK health pages for UK users, once production access is approved.</span></div>
+      <div><b>A second opinion</b><span>A second model checks each answer before you see it.</span></div>
+      <div><b>Always on</b><span>Down to one laptop with Nightshift's Web hotspot; next, fully cloud-hosted.</span></div>
     </div>
   </div>
 </section>
