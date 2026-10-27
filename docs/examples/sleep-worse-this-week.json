@@ -1,0 +1,106 @@
+{
+ "question": "Why has my sleep gotten worse this week, and what can I change?",
+ "hypotheses": [
+  "sleep deprivation",
+  "insomnia",
+  "stress",
+  "poor sleep hygiene"
+ ],
+ "remedies": [],
+ "brands": [],
+ "topics": [
+  "sleep",
+  "fatigue"
+ ],
+ "decisions": [
+  "Used your Fitbit week: the question is about sleep or activity",
+  "Dropped as off-topic: Stress (match 0.51, needed 0.55)",
+  "Dropped as off-topic: Music therapy for stress reduction: a systematic review and meta-analysis. (match 0.51, needed 0.55)",
+  "Removed 1 line that no trusted source supported",
+  "The answer cites 7 of 7 sources; only those are listed"
+ ],
+ "sql": [
+  "SELECT * FROM LYFE_HEALTH_CHECKIN.user_log WHERE user_id = '1503960366' AND day <= '2016-04-25' ORDER BY day DESC LIMIT 7",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%sleep deprivation%' OR lower(also_called) LIKE '%sleep deprivation%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%insomnia%' OR lower(also_called) LIKE '%insomnia%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%stres%' OR lower(also_called) LIKE '%stres%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%poor sleep hygiene%' OR lower(also_called) LIKE '%poor sleep hygiene%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE doc_id IN ('mlp-251','mlp-376','mlp-201','mlp-513')",
+  "SELECT title || ' - ' || section AS title, substr(text, 1, 900) AS text, url, source FROM LYFE_HEALTH_CHECKIN.myhealthfinder WHERE topic IN ('sleep','fatigue') AND text != '' ORDER BY CASE WHEN section LIKE 'Take Action%' THEN 0 ELSE 1 END LIMIT 6",
+  "SELECT title AS title, substr(text, 1, 900) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus WHERE topic IN ('sleep','fatigue') AND text != '' LIMIT 6",
+  "SELECT title || ' (' || journal || ', ' || year || ')' AS title, substr(text, 1, 900) AS text, url, source FROM LYFE_HEALTH_CHECKIN.pubmed WHERE topic IN ('sleep','fatigue') AND text != '' LIMIT 6"
+ ],
+ "backend": "zetaris",
+ "timings": {
+  "clarify": 3.5,
+  "hypotheses": 0.8,
+  "zetaris": 0.8,
+  "pubmed": 3.6
+ },
+ "sources": [
+  {
+   "title": "Insomnia",
+   "source": "MedlinePlus (NLM, US)",
+   "url": "https://medlineplus.gov/insomnia.html",
+   "kind": "library",
+   "relevance": 0.644
+  },
+  {
+   "title": "Sleep Disorders",
+   "source": "MedlinePlus (NLM, US)",
+   "url": "https://medlineplus.gov/sleepdisorders.html",
+   "kind": "library",
+   "relevance": 0.633
+  },
+  {
+   "title": "Get Enough Sleep - Take Action: Daytime Habits",
+   "source": "MyHealthfinder (ODPHP, US)",
+   "url": "https://odphp.health.gov/myhealthfinder/healthy-living/mental-health-and-relationships/get-enough-sleep",
+   "kind": "guide",
+   "relevance": 0.671
+  },
+  {
+   "title": "Get Enough Sleep - Take Action: Nighttime Habits",
+   "source": "MyHealthfinder (ODPHP, US)",
+   "url": "https://odphp.health.gov/myhealthfinder/healthy-living/mental-health-and-relationships/get-enough-sleep",
+   "kind": "guide",
+   "relevance": 0.642
+  },
+  {
+   "title": "Get Enough Sleep - Take Action: See a Doctor",
+   "source": "MyHealthfinder (ODPHP, US)",
+   "url": "https://odphp.health.gov/myhealthfinder/healthy-living/mental-health-and-relationships/get-enough-sleep",
+   "kind": "guide",
+   "relevance": 0.669
+  },
+  {
+   "title": "A meta-analysis of the impact of short-term sleep deprivation on cognitive variables.",
+   "source": "PubMed: Psychol Bull, 2010",
+   "url": "https://pubmed.ncbi.nlm.nih.gov/20438143/",
+   "kind": "research",
+   "relevance": 0.626
+  },
+  {
+   "title": "A systematic review and meta-analysis of poor sleep, insomnia symptoms and stress in undergraduate students.",
+   "source": "PubMed: Sleep Med Rev, 2022",
+   "url": "https://pubmed.ncbi.nlm.nih.gov/34922108/",
+   "kind": "research",
+   "relevance": 0.636
+  }
+ ],
+ "cited": [
+  6,
+  1,
+  7,
+  3,
+  4,
+  5,
+  2
+ ],
+ "recalled": [
+  "mem-47",
+  "mem-23",
+  "mem-2"
+ ],
+ "answer": "**What you describe**  \nOver the past week you averaged 5.7\u202fhours of sleep per night, with 5 of 6 nights below the 7\u2011hour guideline [log]. This matches the pattern in your three previous check\u2011ins, which also showed averages of 5.7\u20136.3\u202fhours and most nights under 7\u202fhours [m1][m2][m3]. You meet the activity target (434\u202fmin/week) but spend about 14.1\u202fhours sedentary daily [log].\n\n**Possible causes**  \n1. **Sleep deprivation** \u2013 consistently getting less than 7\u202fhours builds a sleep debt that makes it harder to fall asleep and stay asleep the next night [6].  \n2. **Stress** \u2013 stress and poor sleep quality are tightly linked; even short\u2011term stress can trigger acute insomnia that lasts days to weeks [1][7].  \n3. **Poor sleep hygiene** \u2013 irregular bedtime, screen use before bed, or a noisy/bright bedroom can fragment sleep and reduce total time asleep [3][4].  \n4. **Insomnia** \u2013 if you have trouble falling asleep, staying asleep, or waking unrefreshed on most nights for a month or more, it may be chronic insomnia [1].  \n\n*Do you notice racing thoughts or worry at bedtime, or is it mainly a habit of staying up late?*\n\n**What you can do now**  \n- Move bedtime 30\u202fminutes earlier tonight and keep the same wake time every day, even weekends [3][4].  \n- Stop screens (phone, TV, computer) 1\u202fhour before bed; use a dim lamp and a brief wind\u2011down routine (reading, stretching) [4].  \n- Keep the bedroom dark, cool, and quiet; consider white noise if needed [4].  \n- Limit caffeine after 2\u202fPM and avoid alcohol within 3\u202fhours of bedtime [3].  \n- Get bright outdoor light within 30\u202fminutes of waking to anchor your circadian rhythm [3].  \n\n**What the research says**  \n- Most adults need 7\u202for more hours of sleep for optimal health and alertness [3].  \n- Short sleep impairs attention, working memory, and processing speed [6].  \n- Stress and poor sleep reinforce each other; reducing stress often improves sleep quality [7].  \n- Acute insomnia is common and usually resolves when the stressor eases or sleep habits improve [1].\n\n**See a doctor if**  \n- Sleep trouble persists more than 2\u202fweeks after you\u2019ve tried the steps above [5].  \n- You snore loudly, gasp, or have been told you stop breathing during sleep [2].  \n- Daytime sleepiness affects driving, work, or safety [5].  \n- Bring a sleep diary (bedtime, wake time, awakenings, caffeine, alcohol) for the past 1\u20132\u202fweeks [5]."
+}

@@ -112,6 +112,74 @@ the answer had to be rewritten to cite a source. The app shows them under "Show 
 next to the SQL sent to Zetaris and the memories recalled from H-MEM, and each check-in's full
 trace is saved to `data/traces/<user>-<memory id>.json`, next to its H-MEM memory and ledger.
 
+## Sample check-ins
+
+Three real runs: the input, the output, and the log behind it. The full traces of the first
+two (SQL sent to Zetaris, sources, H-MEM recalls, decisions, timings) are in
+[`docs/examples/`](docs/examples/). Both answers were written by NVIDIA Nemotron 3 Ultra
+through Meterless Nightshift. Answers are shortened here; the traces hold them in full.
+
+**1. A question about the person's own week** (Fitbit user `1503960366`, as of 2016-04-25)
+
+Input: `Why has my sleep gotten worse this week, and what can I change?`
+
+Output (excerpt):
+
+> **What you describe:** Over the past week you averaged 5.7 hours of sleep per night, with 5
+> of 6 nights below the 7-hour guideline [log]. This matches the pattern in your three previous
+> check-ins [m1][m2][m3].
+>
+> **Possible causes:** 1. Sleep deprivation: less than 7 hours builds a sleep debt [6].
+> 2. Stress: even short-term stress can trigger acute insomnia [1][7]. 3. Poor sleep hygiene [3][4].
+> 4. Insomnia, if it happens most nights for a month or more [1].
+> *Do you notice racing thoughts or worry at bedtime, or is it mainly a habit of staying up late?*
+>
+> **What you can do now:** Move bedtime 30 minutes earlier tonight and keep the same wake time
+> every day [3][4]. Stop screens 1 hour before bed [4]. ...
+>
+> **See a doctor if:** sleep trouble persists more than 2 weeks after trying the steps [5]; you
+> snore loudly, gasp, or have been told you stop breathing during sleep [2]. ...
+
+Log: 2 Zetaris queries (the user's week, then MedlinePlus topics), 3 past check-ins recalled
+from H-MEM, 7 sources cited. Decisions: "Used your Fitbit week: the question is about sleep or
+activity"; "Dropped as off-topic: Stress (match 0.51, needed 0.55)"; "Removed 1 line that no
+trusted source supported". Trace: [`sleep-worse-this-week.json`](docs/examples/sleep-worse-this-week.json).
+
+**2. A remedy question, with clarifying questions** (user `4445114986`)
+
+Input: `I've got a sore throat. What can I do? Would eating ginger help?`, then the answers to
+the two clarifying questions: `No fever, both sides` and `Fresh ginger in food or tea`.
+
+Output (excerpt):
+
+> **Your question:** Ginger has not been studied for sore throat. It is researched for nausea,
+> menstrual cramps, and osteoarthritis [1][2]. Ginger can cause mouth and throat irritation [3],
+> so it may not help and could worsen discomfort.
+>
+> **Possible causes:** 1. Viral pharyngitis (common cold/flu): most likely; no fever, both
+> sides [4][5]. 2. Streptococcal pharyngitis (strep throat): usually sudden severe pain, fever,
+> one-sided swelling [4][5]. ...
+>
+> **See a doctor if:** the sore throat lasts more than 7 days or worsens after 3 days [4]. ...
+
+Log: the Fitbit week was left out ("the question isn't about sleep, activity or weight"),
+honey was skipped ("the person didn't name it"), 3 sources were dropped as off-topic, and
+5 of 5 sources were cited (3 NCCIH ginger pages, 2 MedlinePlus topics). Trace:
+[`sore-throat-ginger.json`](docs/examples/sore-throat-ginger.json).
+
+**3. A danger sign**
+
+Input: `I have crushing chest pain and my left arm feels numb. What should I do?`
+
+Output (complete):
+
+> This could be serious. Please get help now: call your local emergency number (911 in North
+> America, 112 in Europe, 999 in the UK). If you're thinking about harming yourself, find a
+> free, confidential line at https://findahelpline.com (in Canada and the US, call or text 988).
+
+Log: the safety rules matched before any model call, so no advice was written and no
+check-in was saved to memory.
+
 ## Pre-existing work (declared)
 
 - Open-source and public data listed above.

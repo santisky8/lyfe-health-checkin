@@ -1,0 +1,88 @@
+{
+ "question": "I've got a sore throat. What can I do? Would eating ginger help?\n\ncontinue\n\nMy answers:\n- Does your sore throat come with a fever, and is it worse on one side? No fever, both sides\n- How are you taking the ginger? Fresh ginger in food or tea; Other",
+ "hypotheses": [
+  "sore throat",
+  "pharyngitis",
+  "viral pharyngitis",
+  "streptococcal pharyngitis"
+ ],
+ "remedies": [
+  "ginger",
+  "tea"
+ ],
+ "brands": [],
+ "topics": [
+  "nutrition"
+ ],
+ "decisions": [
+  "Skipped remedy honey: the person didn't name it",
+  "Left your Fitbit week out: the question isn't about sleep, activity or weight",
+  "Dropped as off-topic: Streptococcal Infections (match 0.61, needed 0.65)",
+  "Dropped as off-topic: Traditional Chinese herbal tea Psychotria rubra suppresses inflammatory response (match 0.59, needed 0.65)",
+  "Dropped as off-topic: The effect of an aromatic solution applied after percutaneous nephrolithotomy on (match 0.61, needed 0.65)",
+  "Cited 2 lines the model left uncited to the source passage that says the same thing",
+  "7 causes, steps or warning signs had no source, so the page marks them as general advice",
+  "The answer cites 5 of 5 sources; only those are listed"
+ ],
+ "sql": [
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%sore throat%' OR lower(also_called) LIKE '%sore throat%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%pharyngiti%' OR lower(also_called) LIKE '%pharyngiti%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%viral pharyngiti%' OR lower(also_called) LIKE '%viral pharyngiti%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE lower(title) LIKE '%streptococcal pharyngiti%' OR lower(also_called) LIKE '%streptococcal pharyngiti%'",
+  "SELECT doc_id, title, also_called, substr(text, 1, 1000) AS text, url, source FROM LYFE_HEALTH_CHECKIN.medlineplus_topics WHERE doc_id IN ('mlp-571','mlp-516','mlp-385','mlp-534')",
+  "SELECT title, section, substr(text, 1, 1400) AS text, url, source FROM LYFE_HEALTH_CHECKIN.nccih WHERE lower(title) LIKE '%ginger%'"
+ ],
+ "backend": "zetaris",
+ "timings": {
+  "clarify": 3.6,
+  "hypotheses": 1.4,
+  "zetaris": 1.4,
+  "pubmed": 5.9
+ },
+ "sources": [
+  {
+   "title": "Ginger: How Much Do We Know?",
+   "source": "NCCIH (NIH, US)",
+   "url": "https://www.nccih.nih.gov/health/ginger",
+   "kind": "remedy",
+   "relevance": 0.704
+  },
+  {
+   "title": "Ginger: What Have We Learned?",
+   "source": "NCCIH (NIH, US)",
+   "url": "https://www.nccih.nih.gov/health/ginger",
+   "kind": "remedy",
+   "relevance": 0.729
+  },
+  {
+   "title": "Ginger: What Do We Know About Safety?",
+   "source": "NCCIH (NIH, US)",
+   "url": "https://www.nccih.nih.gov/health/ginger",
+   "kind": "remedy",
+   "relevance": 0.773
+  },
+  {
+   "title": "Sore Throat",
+   "source": "MedlinePlus (NLM, US)",
+   "url": "https://medlineplus.gov/sorethroat.html",
+   "kind": "library",
+   "relevance": 0.741
+  },
+  {
+   "title": "Throat Disorders",
+   "source": "MedlinePlus (NLM, US)",
+   "url": "https://medlineplus.gov/throatdisorders.html",
+   "kind": "library",
+   "relevance": 0.706
+  }
+ ],
+ "cited": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "recalled": [],
+ "answer": "**Your question**  \nGinger has not been studied for sore throat. It is researched for nausea, menstrual cramps, and osteoarthritis [1][2]. Ginger can cause mouth and throat irritation [3], so it may not help and could worsen discomfort. Small amounts in food or tea are generally safe for most adults, but avoid large doses. People on blood thinners, with acid reflux, gallstones, or who are pregnant or breastfeeding should consult a clinician before using ginger supplements [3]. Ginger may interact with some medicines [3].\n\n**Possible causes**  \n1. Viral pharyngitis (common cold/flu) \u2013 most likely; no fever, both sides, often with runny nose or cough [4][5].  \n2. Streptococcal pharyngitis (strep throat) \u2013 usually sudden severe pain, fever, one\u2011sided swelling, but can be both sides [4][5].  \n3. Allergies or post\u2011nasal drip \u2013 scratchy throat, worse in morning, often with sneezing or nasal congestion [5].  \n4. GERD (acid reflux) \u2013 burning throat, worse after meals or lying down, may have heartburn [5].  \n\n**What you can do now**  \n- Sip warm water or herbal tea with 1 teaspoon honey, 3\u20134 times daily.  \n- Gargle with warm salt water (\u00bd teaspoon salt in 8 oz water) several times a day.  \n- Stay hydrated; use a humidifier or steam inhalation.  \n- Rest your voice; avoid smoke and irritants.  \n- If you use ginger, limit to \u00bc\u2013\u00bd teaspoon fresh grated ginger in hot water up to 3 times daily; stop if irritation increases.  \n- Over\u2011the\u2011counter pain relievers (acetaminophen or ibuprofen) may ease pain; follow label directions [4].\n\n**What the research says**  \n- Ginger is not evaluated for sore throat; evidence covers nausea, menstrual cramps, osteoarthritis [1][2].  \n- Ginger can cause mouth and throat irritation [3].  \n- Most sore throats are viral and resolve in 5\u20137 days; fluids, lozenges, and salt\u2011water gargles are recommended [4].\n\n**See a doctor if**  \n- Sore throat lasts more than 7 days or worsens after 3 days [4].\n- Difficulty breathing, swallowing, or opening mouth.  \n- Fever above 101\u202f\u00b0F (38.3\u202f\u00b0C), rash, joint pain, or blood in saliva.  \n- Tell the clinician what you tried, for how long, and any changes."
+}
