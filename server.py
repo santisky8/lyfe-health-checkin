@@ -296,17 +296,21 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write("%s\n" % (fmt % args))
 
 
-VISITOR_DAYS = 7  # public-demo visitors' memories and traces are deleted after this
+VISITOR_DAYS = 7  # public-demo visitors' memories and traces are deleted after this long unused
 
 
 def forget_visitors():
-    """Delete public-demo visitors' memories and traces older than VISITOR_DAYS, now and every
+    """Delete public-demo visitors' memories and traces unused for VISITOR_DAYS, now and every
     six hours. The demo people's own memories (no -v suffix) are kept."""
     while True:
         cutoff = time.time() - VISITOR_DAYS * 86400
         for path in [*(ROOT / "data" / "memory").glob("*-v*"), *(ROOT / "data" / "traces").glob("*-v*")]:
             try:
-                if path.stat().st_mtime < cutoff:
+                # last activity: memory files are rewritten in place, which leaves the folder's
+                # own time at the first visit
+                last = max([f.stat().st_mtime for f in path.iterdir()] if path.is_dir() else [],
+                           default=path.stat().st_mtime)
+                if last < cutoff:
                     shutil.rmtree(path) if path.is_dir() else path.unlink()
             except OSError:
                 pass

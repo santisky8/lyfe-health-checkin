@@ -211,7 +211,7 @@ General health information, not medical advice.
   details, only the 33 Fitbit people are accepted, check-ins are rate-limited per caller and per
   hour so nobody can run up the model bill, posts from other sites are refused, agent turns
   the server didn't send are dropped before the safety check, and visitors' memories are
-  deleted after 7 days). `python3 -m unittest discover tests` runs the danger-sign tests. After the judging window it disables
+  deleted after 7 days unused). `python3 -m unittest discover tests` runs the danger-sign tests. After the judging window it disables
   itself.
 - `./demo_on.sh`: starts that service and publishes port 8766 with Tailscale Funnel (the
   Funnel setting survives reboots). Needs the Nightshift companion service running, or `NVIDIA_API_KEY`
