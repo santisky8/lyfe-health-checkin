@@ -201,8 +201,10 @@ General health information, not medical advice.
   demo" button while the demo answers.
 - `demo_service.sh`: run at login by the systemd user service `lyfe-checkin-demo`. It starts
   Docker Desktop, waits for Zetaris, then runs a public-mode copy of the app on port 8766
-  (`PUBLIC=1`: each visitor gets their own H-MEM memory through a cookie, and errors show no
-  details). After the judging window it disables itself.
+  (`PUBLIC=1`: each visitor gets their own H-MEM memory through a cookie, errors show no
+  details, only the 33 Fitbit people are accepted, and check-ins are rate-limited per caller
+  and per day so nobody can run up the model bill). After the judging window it disables
+  itself.
 - `./demo_on.sh`: starts that service and publishes port 8766 with Tailscale Funnel (the
   Funnel setting survives reboots). Needs the Nightshift laptop running, or `NVIDIA_API_KEY`
   in `.env.local` as the backup.

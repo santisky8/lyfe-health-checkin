@@ -5,6 +5,7 @@ import json
 import os
 import sqlite3
 import threading
+import urllib.error
 import urllib.request
 import uuid
 from pathlib import Path
@@ -36,7 +37,8 @@ def table(name):
 def _literal(value):
     if isinstance(value, (int, float)):
         return str(value)
-    return "'" + str(value).replace("'", "''") + "'"
+    # Zetaris runs Spark SQL, where a backslash also escapes, so it is doubled too.
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "''") + "'"
 
 
 def _inline(sql, params):

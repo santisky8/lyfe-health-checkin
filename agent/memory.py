@@ -19,9 +19,13 @@ NODE = os.environ.get("NODE_BIN") or shutil.which("node") or str(
 visitor = contextvars.ContextVar("visitor", default="")
 
 
+def owner(user_id):
+    """The id memories and traces are kept under: public-demo visitors each get their own."""
+    return f"{user_id}-v{visitor.get()}" if visitor.get() else user_id
+
+
 def _call(request):
-    if visitor.get():
-        request = {**request, "user": f"{request['user']}-v{visitor.get()}"}
+    request = {**request, "user": owner(request["user"])}
     r = subprocess.run([NODE, "--no-warnings", "--experimental-transform-types", str(CLI)],
                        input=json.dumps(request), capture_output=True, text=True, timeout=60)
     if r.returncode != 0:

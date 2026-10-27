@@ -16,7 +16,10 @@ import re
 import secrets
 import sys
 import threading
+import time
 import uuid
+from collections import deque
+from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -32,11 +35,38 @@ PUBLIC = os.environ.get("PUBLIC") == "1"
 _prepared = {}  # evidence waiting for /api/stream, by id; oldest dropped past MAX_WAITING
 MAX_WAITING = 100
 _lock = threading.Lock()
+# Public mode: limits per caller and in total, so nobody can spend the NVIDIA key or fill the
+# disk with memory folders by looping on the API. (max requests, per seconds)
+LIMITS = {"model": [(10, 60), (300, 86400)], "memory": [(60, 60), (3000, 86400)]}
+_hits = {}  # (kind, caller or "all", window) -> request times inside that window
+
+
+def allowed(kind, caller):
+    """True if this caller may make one more request of this kind (always true locally)."""
+    if not PUBLIC:
+        return True
+    now = time.time()
+    (each, per), total = LIMITS[kind]
+    windows = [((kind, caller, per), each, per), ((kind, "all", total[1]), total[0], total[1])]
+    with _lock:
+        if len(_hits) > 10000:  # many callers: forget the old per-caller windows
+            _hits.clear()
+        for key, most, secs in windows:
+            seen = _hits.setdefault(key, deque())
+            while seen and seen[0] < now - secs:
+                seen.popleft()
+            if len(seen) >= most:
+                return False
+        for key, _, _ in windows:
+            _hits[key].append(now)
+    return True
 
 
 def person(value):
     """A Fitbit user id from the request: digits only, since it goes into SQL and H-MEM."""
     if not re.fullmatch(r"\d{1,20}", str(value)):
+        raise ValueError("unknown person")
+    if PUBLIC and str(value) not in {u["user_id"] for u in users()}:  # no memory for made-up ids
         raise ValueError("unknown person")
     return str(value)
 
@@ -48,6 +78,7 @@ def day(value):
     return value or None
 
 
+@lru_cache(maxsize=1)  # the Fitbit data never changes while the server runs
 def users():
     """People in the Fitbit data, with how many nights of sleep each one logged. Many wore the
     watch only in the day, so the people with the most sleep data come first."""
@@ -82,6 +113,11 @@ class Handler(BaseHTTPRequestHandler):
         if not found:
             self._cookie = f"lhv={vid}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax"
         memory.visitor.set(vid)
+
+    def _caller(self):
+        """Who is asking: Funnel forwards every request from 127.0.0.1, with the real address
+        in X-Forwarded-For."""
+        return self.headers.get("X-Forwarded-For", self.client_address[0]).split(",")[0].strip()
 
     def _headers(self, code, kind):
         self.send_response(code)
@@ -120,6 +156,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, users())
             if url.path == "/api/log":
                 return self._send(200, log(person(q["user"]), day(q.get("as_of"))))
+            if url.path in ("/api/suggest", "/api/memory") and not allowed("memory", self._caller()):
+                return self._send(429, {"error": "Too many requests. Please wait a minute."})
             if url.path == "/api/suggest":
                 return self._send(200, checkin.suggestions(person(q["user"]), day(q.get("as_of"))))
             if url.path == "/api/memory":
@@ -134,8 +172,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._start()
         size = int(self.headers.get("Content-Length", 0))
-        if size > 65536:
+        if size < 0 or size > 65536:
             return self._send(413, {"error": "message too long"})
+        kind = {"/api/turn": "model", "/api/note": "memory"}.get(self.path)
+        if kind and not allowed(kind, self._caller()):
+            return self._send(429, {"error": "Too many requests. Please wait a minute."})
         try:
             body = json.loads(self.rfile.read(size) or b"{}")
             if self.path == "/api/turn":

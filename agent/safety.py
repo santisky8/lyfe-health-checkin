@@ -10,6 +10,8 @@ import re
 import time
 import urllib.request
 
+import llm
+
 EMERGENCY = (
     "This could be serious. Please get help now: call your local emergency number "
     "(911 in North America, 112 in Europe, 999 in the UK). "
@@ -62,7 +64,7 @@ DISCLAIMER = (
 
 
 GUARD_MODEL = "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
-GUARD_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+GUARD_URL = llm.NVIDIA_CLOUD + "/chat/completions"
 
 
 def guard(text):

@@ -189,26 +189,15 @@ def suggestions(user_id, as_of=None, limit=3):
     return out[:limit]
 
 
-def sources_for(topics, per_table=2):
-    found = []
+def sources_for(topics, per_topic=2):
+    """MyHealthfinder guidance on the log's topics. Its "Take Action" sections (daily habits,
+    when to see a doctor) come first: they are what the steps and warning signs need a source for."""
     marks = ",".join("?" * len(topics))
-    # MyHealthfinder's "Take Action" sections (daily habits, when to see a doctor) come first:
-    # they are what the steps and warning signs need a source for.
-    for table, cols, order in [
-            ("myhealthfinder", "title || ' - ' || section",
-             "ORDER BY CASE WHEN section LIKE 'Take Action%' THEN 0 ELSE 1 END "),
-            ("medlineplus", "title", ""),
-            ("pubmed", "title || ' (' || journal || ', ' || year || ')'", "")]:
-        found += store.query(
-            f"SELECT {cols} AS title, substr(text, 1, 900) AS text, url, source "
-            f"FROM {store.table(table)} WHERE topic IN ({marks}) AND text != '' {order}LIMIT ?",
-            (*topics, per_table * len(topics)))
-    seen, unique = set(), []
-    for s in found:
-        if s["url"] + s["title"] not in seen:
-            seen.add(s["url"] + s["title"])
-            unique.append(s)
-    return unique[:10]
+    return store.query(
+        f"SELECT title || ' - ' || section AS title, substr(text, 1, 900) AS text, url, source "
+        f"FROM {store.table('myhealthfinder')} WHERE topic IN ({marks}) AND text != '' "
+        "ORDER BY CASE WHEN section LIKE 'Take Action%' THEN 0 ELSE 1 END LIMIT ?",
+        (*topics, per_topic * len(topics)))
 
 
 def score_sources(question, sources):
@@ -288,7 +277,7 @@ def steps_in(text):
     part = re.split(r"\*\*What you can do now\*\*:?", text, flags=re.I)
     if len(part) < 2:
         return []
-    body = re.split(r"^[ \t]*(?:#{1,4}[ \t]*)?\*\*[^*\n]{3,40}\*\*", part[1], flags=re.M)[0]
+    body = NEXT_HEADING.split(part[1])[0]
     steps = [re.sub(r"\s*\[(\d+|log|m\d+)\]", "", ln).strip(" *-•\t") for ln in body.splitlines()]
     return [re.sub(r"^\d+[.)]\s*", "", st) for st in steps if len(st) > 3]
 
@@ -348,6 +337,9 @@ def remedy_facts(name, limit=3):
              "source": r["source"]} for r in keep[:limit]]
 
 
+EVIDENCE_WAIT = 20  # seconds to wait for PubMed and H-MEM once the Zetaris queries are done
+
+
 def find_reviews(terms, context):
     """PubMed reviews for these terms, or None when PubMed fails twice (slow or rate-limited)."""
     for attempt in range(2):
@@ -389,7 +381,10 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
     for r in found_terms["remedies"]:
         if r not in remedies:
             decisions.append(f"Skipped remedy {r}: the person didn't name it")
-    brands = [] if "ingredients on the label" in question.lower() else found_terms.get("brands", [])
+    # The person's own words only: the merged question also holds the agent's earlier answer,
+    # which may itself ask for "the ingredient list on the label".
+    brands = ([] if "ingredients on the label" in (said or question).lower()
+              else found_terms.get("brands", []))
     timings["hypotheses"] = round(time.time() - t0, 1)
     # PubMed and H-MEM are slow network calls that need nothing from Zetaris, so they run in
     # the background while the Zetaris queries run here (here, so their SQL is logged).
@@ -422,8 +417,7 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
               if r["match"] >= MIN_MATCH and r["doc_id"] not in ids][:3 - len(found)]
     library_rows = [{"title": r["title"], "text": r["text"], "url": r["url"],
                      "source": r["source"], "kind": "library", "match": r["match"]} for r in found]
-    guide_rows = ([dict(s, kind="guide") for s in sources_for(topics, per_table=3)
-                   if s["source"].lower().startswith("myhealthfinder")]
+    guide_rows = ([dict(s, kind="guide") for s in sources_for(topics, per_topic=3)]
                   if topics and summary else [])
     remedy_rows = []
     for name in remedies:
@@ -436,7 +430,12 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
         remedy_rows += [dict(r, kind="remedy", about=name) for r in rows]
     timings["zetaris"] = round(time.time() - t0, 1)
     papers, seen = [], set()
-    for about, found_reviews in reviews.result():  # first new review per search, in order
+    try:  # a hung PubMed or H-MEM must not hang the check-in; late threads finish on their own
+        found = reviews.result(timeout=EVIDENCE_WAIT)
+    except TimeoutError:
+        found = []
+        decisions.append("PubMed didn't answer in time; went on without it")
+    for about, found_reviews in found:  # first new review per search, in order
         if found_reviews is None:
             decisions.append(f"PubMed didn't answer for {about}; went on without it")
             continue
@@ -445,7 +444,11 @@ def prepare(question, user_id, as_of=None, clarified=False, said=None, verdict=N
                 seen.add(p["url"])
                 papers.append(dict(p, kind="research", about=about))
                 break
-    past = latest_per_question(recall.result())[:3]
+    try:
+        past = latest_per_question(recall.result(timeout=EVIDENCE_WAIT))[:3]
+    except TimeoutError:
+        past = []
+        decisions.append("H-MEM didn't answer in time; went on without past check-ins")
     timings["pubmed"] = round(time.time() - t0, 1)
     via = llm.via()
     if via != "Meterless Nightshift":
@@ -466,7 +469,10 @@ def turn(turns, user_id, as_of=None):
     {"role": "user" | "assistant", "content": ..., "kind": "ask" | "answer"}. Returns a
     follow-up question ({"ask": {...}}), the emergency message, or the prepared evidence for
     an answer (the page then streams it with /api/stream)."""
-    urgent, verdict = danger(turns[-1]["content"], user_id)
+    # Screen everything the person wrote, not just the newest turn: the page sends the whole
+    # conversation, so a danger sign in an earlier turn must not slip past.
+    said = "\n".join(t["content"] for t in turns if t["role"] == "user")
+    urgent, verdict = danger(said, user_id)
     if urgent:
         return {"urgent": urgent}
     t0 = time.time()
@@ -474,7 +480,6 @@ def turn(turns, user_id, as_of=None):
     if ask:
         return {"ask": ask, "timings": {"clarify": round(time.time() - t0, 1)}}
     clarify_s = round(time.time() - t0, 1)
-    said = " ".join(t["content"] for t in turns if t["role"] == "user")
     prep = prepare(clarify.case_text(turns), user_id, as_of, clarified=True, said=said,
                    verdict=verdict)
     prep["conversation"] = turns
@@ -486,7 +491,8 @@ def danger(text, user_id):
     """(emergency message or None, Nemotron Safety Guard verdict or None). The rules come first;
     the guard model adds harmful requests they can't phrase. Either path to help is logged to
     H-MEM."""
-    urgent = safety.check(text)
+    # Rules line by line, so a "no" in one turn can't cancel a danger sign in the next.
+    urgent = next(filter(None, map(safety.check, text.splitlines())), None)
     verdict = None if urgent else safety.guard(text)
     if verdict and not verdict["safe"] and "Suicide and Self Harm" in verdict["categories"]:
         urgent = safety.EMERGENCY
@@ -550,10 +556,13 @@ def cited(text):
     return list(dict.fromkeys(int(n) for n in re.findall(r"\[(\d+)\]", text)))
 
 
+# Lines that only say what to tell the doctor are advice about the visit, not health facts,
+# so they need no source.
 VISIT = re.compile(r"\s*(?:[-*•]|\d+[.)])\s+(?:\*\*)?(?:tell|bring|mention|note|share|keep a|try (?:this|these)|track|log)\b", re.I)
 
 
 LIST_ITEM = re.compile(r"\s*(?:[-*•]|\d+[.)])\s+")
+NEXT_HEADING = re.compile(r"^[ \t]*(?:#{1,4}[ \t]*)?\*\*[^*\n]{3,40}\*\*", re.M)  # ends a section
 GROUND_MIN = 0.72  # how close a line and a passage must be in meaning to count as support
 
 
@@ -562,8 +571,7 @@ def _loose_lines(text):
     out = []
     for part in re.split(r"^[ \t]*\*\*(?=Possible causes|What you can do now|See a doctor)", text,
                          flags=re.M | re.I)[1:]:
-        body = re.split(r"^[ \t]*(?:#{1,4}[ \t]*)?\*\*[^*\n]{3,40}\*\*", part.split("\n", 1)[-1],
-                        flags=re.M)[0]
+        body = NEXT_HEADING.split(part.split("\n", 1)[-1])[0]
         out += [ln for ln in body.splitlines()
                 if LIST_ITEM.match(ln) and not re.search(r"\[\d+\]", ln) and not VISIT.match(ln)]
     return out
@@ -602,7 +610,7 @@ def drop_unsourced(text):
     parts = re.split(r"(^[ \t]*\*\*(?:Possible causes|What you can do now|See a doctor)[^\n]*\n)", text,
                      flags=re.M | re.I)
     for i in range(1, len(parts) - 1, 2):
-        body = re.split(r"^[ \t]*(?:#{1,4}[ \t]*)?\*\*[^*\n]{3,40}\*\*", parts[i + 1], maxsplit=1, flags=re.M)
+        body = NEXT_HEADING.split(parts[i + 1], maxsplit=1)
         items = [ln for ln in body[0].splitlines() if LIST_ITEM.match(ln) and not VISIT.match(ln)]
         if items:
             continue
@@ -612,12 +620,6 @@ def drop_unsourced(text):
             parts[i + 1] = ("The trusted sources found don't cover this. A doctor or pharmacist "
                             "can help.\n\n") + parts[i + 1]
     return "".join(parts), len(loose)
-
-
-def unsourced(text):
-    """How many causes, steps and warning signs cite no source [n]. Lines that only say what
-    to tell the doctor are advice about the visit, not health facts, so they don't count."""
-    return len(_loose_lines(text))
 
 
 def finish(prep, text):
@@ -669,8 +671,7 @@ def save_trace(prep, memory_id, numbers, text):
 
 def trace_path(user_id, memory_id):
     """Where a check-in's trace lives; public-demo visitors each have their own."""
-    who = str(user_id) + (f"-v{memory.visitor.get()}" if memory.visitor.get() else "")
-    return TRACES / f"{who}-{memory_id}.json"
+    return TRACES / f"{memory.owner(user_id)}-{memory_id}.json"
 
 
 def saved_answer(user_id, memory_id):
