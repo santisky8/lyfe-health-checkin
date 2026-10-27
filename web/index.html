@@ -75,10 +75,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ask{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:-44px;box-shadow:0 12px 32px rgba(15,27,51,.14);position:relative}
 .ask h2{font:600 1.3rem var(--display);margin:0;text-wrap:balance}
 .asksub{margin:4px 0 14px;color:var(--muted);font-size:.98rem;max-width:62ch}
-.askrow{display:flex;gap:10px;align-items:stretch}
+.askrow{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+.ask .askrow textarea{flex:1 1 100%}
 .ask textarea{flex:1;min-width:0;min-height:96px;max-height:360px;resize:vertical;line-height:1.5;border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--bg);font-size:1.02rem}
-.go{background:var(--sun);color:#fff;border:0;border-radius:12px;padding:0 22px;font:600 1rem var(--display);cursor:pointer;white-space:nowrap}
-@media (max-width:560px){.askrow{flex-direction:column}.go{padding:13px}}
+.go{background:var(--sun);color:#fff;border:0;border-radius:12px;padding:11px 22px;min-height:44px;font:600 1rem var(--display);cursor:pointer;white-space:nowrap}
+@media (max-width:560px){.go,.newtopic{flex:1}}
 .go:hover{filter:brightness(1.05)}.go:disabled{opacity:.55;cursor:progress}
 .suggest{margin-top:16px}
 .suggest h3{margin:0 0 8px;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -118,7 +119,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .a .hint{font-size:.85rem;color:var(--muted);margin:10px 0 0}
 .a .opt-send{margin-top:12px;background:var(--sun);color:#1a0d06;border:0;border-radius:10px;padding:9px 18px;font:600 .95rem var(--display);cursor:pointer}
 .a .opt-send:disabled{opacity:.45;cursor:default}
-.newtopic{background:transparent;border:1px solid var(--line);color:inherit;border-radius:12px;padding:0 14px;font-weight:600;cursor:pointer}
+.newtopic{background:transparent;border:1px solid var(--line);color:inherit;border-radius:12px;padding:10px 16px;min-height:44px;font-weight:600;cursor:pointer}
 .newtopic[hidden]{display:none}
 .block.research h4{color:var(--zet)}
 .kind{font:500 .62rem var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-left:4px}
@@ -274,6 +275,38 @@ pre{background:var(--code);border-radius:8px;padding:8px 10px;font:11.5px/1.5 va
 @media (prefers-color-scheme:dark){.glow i{opacity:.1}}
 @media (prefers-reduced-motion:reduce){.glow i{animation:none}}
 @media (prefers-reduced-motion:reduce){.bw,.rise,.step.new,.step.done.new .dot,[data-page]:not([hidden]){animation:none}.sky>canvas.aurora{display:none}.chip:hover,.intro div:hover{transform:none}}
+/* about */
+.apage{padding-block:36px 64px;display:grid;gap:40px}
+.ahero{max-width:62rem}
+.eyebrow{font:600 .75rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--sun-ink);margin:0 0 10px}
+.ahero h1{font:600 clamp(1.7rem,3.2vw,2.4rem)/1.15 var(--display);margin:0 0 14px;letter-spacing:-.02em;text-wrap:balance}
+.lede{font-size:1.08rem;color:var(--muted);margin:0;max-width:66ch}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:820px){.stats,.acards{grid-template-columns:1fr}}
+.stat{background:var(--night);color:var(--night-ink);border-radius:16px;padding:20px 22px;text-decoration:none;display:flex;flex-direction:column;gap:6px;transition:transform .2s}
+.stat:hover{transform:translateY(-2px)}
+.stat b{font:600 2.1rem/1 var(--display);color:#ffb38f;font-variant-numeric:tabular-nums}
+.stat span{font-size:.98rem;line-height:1.45}
+.stat small{margin-top:auto;padding-top:8px;color:var(--night-muted);font-size:.78rem}
+.asec h2{font:600 1.35rem var(--display);margin:0 0 6px}
+.asub{color:var(--muted);margin:0 0 16px}
+.acards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
+.acards div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.acards b{font:600 1.05rem var(--display);display:block;margin-bottom:6px}
+.acards p{margin:0;color:var(--muted);font-size:.95rem}
+.flow{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;counter-reset:f}
+.flow li{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;counter-increment:f;position:relative}
+.flow li::before{content:counter(f);position:absolute;top:14px;right:16px;font:600 .9rem var(--mono);color:var(--muted)}
+.flow b{display:block;font:600 1rem var(--display);margin:8px 0 4px}
+.flow p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.5}
+.try{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 24px;display:flex;flex-wrap:wrap;gap:20px;justify-content:space-between;align-items:flex-end}
+.tries{display:flex;flex-wrap:wrap;gap:8px}
+.tries button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:9px 16px;min-height:40px;cursor:pointer;font-weight:600}
+.tries button:hover{border-color:var(--sun);color:var(--sun-ink)}
+.links{display:flex;flex-wrap:wrap;gap:8px}
+.links a{background:var(--sun);color:#fff;text-decoration:none;font-weight:600;border-radius:10px;padding:10px 16px;min-height:44px;display:inline-flex;align-items:center}
+.links a+a{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.next{margin:0;padding-left:1.2em;display:grid;gap:8px;max-width:70ch}
 footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padding-block:22px}
 </style>
 </head>
@@ -293,6 +326,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
   <nav class="wrap tabs" role="tablist" aria-label="Sections">
     <button role="tab" id="tab-checkin" data-tab="checkin" aria-selected="true" aria-controls="page-checkin">Check in</button>
     <button role="tab" id="tab-journal" data-tab="journal" aria-selected="false" aria-controls="page-journal">Journal<span class="count" id="jcount"></span></button>
+    <button role="tab" id="tab-about" data-tab="about" aria-selected="false" aria-controls="page-about">About</button>
   </nav>
   <div class="wrap week" data-page="checkin">
     <div>
@@ -315,7 +349,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <p class="asksub" id="greetsub">Tell me how you've been, or start with one of the ideas below.</p>
       <div class="askrow">
         <textarea id="question" rows="3" placeholder="Tell me in your own words, like you'd tell a friend. For example: I've been tired every afternoon this week"></textarea>
-        <button class="go" id="go">Start my check-in</button>
+        <button class="go" id="go">Start My Check-In</button>
         <button class="newtopic" id="newtopic" hidden>New conversation</button>
       </div>
       <div class="suggest" id="suggest" hidden>
@@ -347,6 +381,72 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
     </section>
   </aside>
 </div>
+
+<main class="wrap apage" id="page-about" data-page="about" role="tabpanel" aria-labelledby="tab-about" hidden>
+  <section class="ahero">
+    <p class="eyebrow">Why I built this</p>
+    <h1>Real answers about your health, from home, from sources you can check.</h1>
+    <p class="lede">We've all been there: something feels off, it's not an emergency, but you want to be safe. I once waited twelve hours in an emergency room and went home with advice to drink honey, lemon and ginger tea. So people ask AI instead, and get confident answers with nothing behind them.</p>
+  </section>
+
+  <div class="stats">
+    <a class="stat" href="https://axios.com/2026/01/05/chatgpt-openai-health-insurance-aca" target="_blank" rel="noopener"><b>40 million</b><span>people a day ask ChatGPT health questions</span><small>OpenAI report, January 2026 · Axios</small></a>
+    <a class="stat" href="https://www.kff.org/health-information-trust/poll-most-who-use-artificial-intelligence-doubt-ai-chatbots-provide-accurate-health-information/" target="_blank" rel="noopener"><b>63%</b><span>of adults aren't confident AI chatbots give accurate health information</span><small>KFF poll, 2024</small></a>
+    <a class="stat" href="https://globalnews.ca/news/11938222/emergency-room-wait-times-cihi-report/" target="_blank" rel="noopener"><b>1.5 million</b><span>people in Canada spent over 14 hours in an emergency department in 2024–25</span><small>CIHI · Global News</small></a>
+  </div>
+
+  <section class="asec">
+    <h2>What makes it different</h2>
+    <div class="acards">
+      <div><b>Every point has a source</b><p>Causes, steps and warning signs link to MedlinePlus, MyHealthfinder, NCCIH or a PubMed review. Anything the agent can't source is labelled "no source".</p></div>
+      <div><b>It starts from your data</b><p>It reads your own Fitbit week and suggests what to ask, with the facts behind each idea, before you type a word.</p></div>
+      <div><b>It remembers and follows up</b><p>Each check-in and note is kept with its source, confidence and date, so next time it asks whether what you tried helped.</p></div>
+    </div>
+  </section>
+
+  <section class="asec">
+    <h2>How it decides</h2>
+    <p class="asub">Seven steps for every check-in. Each one is shown under "Show your work", with the reason behind each choice.</p>
+    <ol class="flow">
+      <li><span class="by">Safety rules</span><b>Danger signs first</b><p>Plain rules, no AI. Chest pain, stroke signs or self-harm go straight to emergency help.</p></li>
+      <li><span class="by l">NVIDIA Nemotron</span><b>Words to medical terms</b><p>A small model lists possible causes and any remedy you named, as search terms only.</p></li>
+      <li><span class="by z">Zetaris</span><b>Trusted library and your week</b><p>SQL through the Zetaris Lightning API over 1,016 MedlinePlus topics, MyHealthfinder guides, NCCIH and your Fitbit log.</p></li>
+      <li><span class="by p">PubMed</span><b>Live research</b><p>A recent systematic review for each possible cause. Case reports are skipped.</p></li>
+      <li><span class="by m">Meterless H-MEM</span><b>What you told it before</b><p>Past check-ins recalled by meaning, each with a source, confidence and an append-only history.</p></li>
+      <li><span class="by l">Meterless Nightshift</span><b>The answer, from evidence only</b><p>NVIDIA Nemotron writes from the sources above, citing each point. Off-topic sources are dropped first.</p></li>
+      <li><span class="by">Check-In</span><b>Check every line</b><p>Uncited lines are matched by meaning to a source sentence or labelled "no source", and every decision is logged.</p></li>
+    </ol>
+  </section>
+
+  <section class="asec try">
+    <div>
+      <h2>Try it yourself</h2>
+      <p class="asub">Pick a person and a week at the top, then start a check-in. These are good first questions:</p>
+      <div class="tries">
+        <button type="button" data-try="Why has my sleep gotten worse this week, and what can I change?">Why has my sleep gotten worse this week?</button>
+        <button type="button" data-try="Should I take a tablespoon of grated ginger with honey for my sore throat?">Ginger and honey for a sore throat?</button>
+        <button type="button" data-try="My lower back hurts when I sit for long. Why?">Lower back hurts when I sit</button>
+      </div>
+    </div>
+    <div class="links">
+      <a href="https://santi.tail93d927.ts.net" target="_blank" rel="noopener">Live app</a>
+      <a href="https://github.com/santisky8/lyfe-health-checkin" target="_blank" rel="noopener">Code on GitHub</a>
+      <a href="https://lyfe-health-checkin.netlify.app" target="_blank" rel="noopener">Project page</a>
+    </div>
+  </section>
+
+  <section class="asec">
+    <h2>What's next</h2>
+    <ul class="next">
+      <li><b>Inside the Lyfe Health app</b> and on lyfehealth.ca, as the daily check-in.</li>
+      <li><b>"How did it go?"</b> reminders a few days after each check-in.</li>
+      <li><b>Your own data:</b> Apple Health, Google Fit and Fitbit sign-in instead of the sample set.</li>
+      <li><b>NHS health content</b> for UK users, once production access is approved.</li>
+      <li><b>A second-opinion model</b> that checks each answer before you see it.</li>
+      <li><b>Fully cloud-hosted</b>, plus a light theme.</li>
+    </ul>
+  </section>
+</main>
 
 <main class="wrap jpage" id="page-journal" data-page="journal" role="tabpanel" aria-labelledby="tab-journal" hidden>
   <div class="jhead">
@@ -506,6 +606,9 @@ document.querySelectorAll(".seg button").forEach(b => b.onclick = () => {
   renderJournal();
 });
 $("#jsearch").addEventListener("input", renderJournal);
+document.querySelectorAll("[data-try]").forEach(b => b.onclick = () => {
+  showTab("checkin"); newTopic(); $("#question").value = b.dataset.try; grow(); window.scrollTo({top: 0}); checkIn();
+});
 $("#journal").addEventListener("click", e => {
   const b = e.target.closest("[data-again]"); if (!b) return;
   showTab("checkin"); newTopic(); $("#question").value = b.dataset.again; grow(); $("#question").focus();
@@ -591,7 +694,7 @@ let convo = null;  // {el, turns: [{role, content, kind}]}
 
 function newTopic() {
   convo = null;
-  $("#question").placeholder = PLACEHOLDER; $("#go").textContent = "Start my check-in"; $("#newtopic").hidden = true;
+  $("#question").placeholder = PLACEHOLDER; $("#go").textContent = "Start My Check-In"; $("#newtopic").hidden = true;
 }
 
 function replyMode(placeholder, button) {
