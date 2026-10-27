@@ -71,13 +71,18 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ask{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:-44px;box-shadow:0 12px 32px rgba(15,27,51,.14);position:relative}
 .ask h2{font:600 1.15rem var(--display);margin:0 0 10px}
 .askrow{display:flex;gap:10px;align-items:stretch}
-.ask textarea{flex:1;min-width:0;min-height:54px;max-height:200px;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--bg);font-size:1.02rem}
+.ask textarea{flex:1;min-width:0;min-height:96px;max-height:360px;resize:vertical;line-height:1.5;border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--bg);font-size:1.02rem}
 .go{background:var(--sun);color:#fff;border:0;border-radius:12px;padding:0 22px;font:600 1rem var(--display);cursor:pointer;white-space:nowrap}
 @media (max-width:560px){.askrow{flex-direction:column}.go{padding:13px}}
 .go:hover{filter:brightness(1.05)}.go:disabled{opacity:.55;cursor:progress}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 13px;font-size:.88rem;color:var(--muted);cursor:pointer}
-.chip:hover{border-color:var(--sun);color:var(--sun-ink)}
+.suggest{margin-top:16px}
+.suggest h3{margin:0 0 8px;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 14px;text-align:left;cursor:pointer;display:grid;gap:4px}
+.chip b{font-weight:600;font-size:.95rem;line-height:1.35}
+.chip small{color:var(--muted);font-size:.8rem;line-height:1.35}
+.chip:hover,.chip:focus-visible{border-color:var(--sun)}
+.chip:hover b{color:var(--sun-ink)}
 .turn{display:flex;flex-direction:column;gap:12px}
 .q{align-self:flex-end;max-width:80%;background:var(--night);color:var(--night-ink);border-radius:18px 18px 4px 18px;padding:11px 16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 24px}
@@ -207,15 +212,13 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
     <div class="ask">
       <h2>What's going on with your body?</h2>
       <div class="askrow">
-        <textarea id="question" rows="1" placeholder="Describe it in your own words. For example: the soles of my feet feel like stinging needles"></textarea>
+        <textarea id="question" rows="3" placeholder="Describe it in your own words. For example: the soles of my feet feel like stinging needles"></textarea>
         <button class="go" id="go">Check in</button>
         <button class="newtopic" id="newtopic" hidden>New conversation</button>
       </div>
-      <div class="chips">
-        <button class="chip" data-q="The soles of my feet feel like stinging needles. What is it?">Soles feel like stinging needles</button>
-        <button class="chip" data-q="How do I get rid of milia?">How do I get rid of milia?</button>
-        <button class="chip" data-q="My lower back hurts when I sit for long. Why?">Lower back hurts when I sit</button>
-        <button class="chip" data-q="Why am I tired every afternoon?">Tired every afternoon</button>
+      <div class="suggest" id="suggest" hidden>
+        <h3>Suggested from your week</h3>
+        <div class="chips" id="chips"></div>
       </div>
     </div>
     <div id="thread" class="feed">
@@ -281,7 +284,18 @@ function weeks() {
   $("#asof").innerHTML = out.map((w, i) => `<option value="${w}">${i + 1} · to ${fmt(w)}</option>`).join("");
   $("#asof").value = out[Math.min(1, out.length - 1)];
 }
-function refresh() { refreshWeek(); refreshJournal(); }
+function refresh() { refreshWeek(); refreshJournal(); refreshSuggest(); }
+
+// Questions read from this person's week and notes (server rules, not the model), each with why.
+async function refreshSuggest() {
+  const list = await api(`/api/suggest?user=${encodeURIComponent($("#user").value)}&as_of=${$("#asof").value}`);
+  $("#chips").innerHTML = list.map(x => `<button class="chip" data-q="${esc(x.q)}"><b>${esc(x.q)}</b><small>Because: ${esc(x.why)}</small></button>`).join("");
+  $("#suggest").hidden = !list.length;
+  $("#chips").querySelectorAll(".chip").forEach(b => b.onclick = () => { newTopic(); $("#question").value = b.dataset.q; grow(); checkIn(); });
+}
+
+// The question box grows with what's typed, so the whole question is always visible.
+function grow() { const t = $("#question"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 360) + "px"; }
 
 async function refreshWeek() {
   const rows = await api(`/api/log?user=${encodeURIComponent($("#user").value)}&as_of=${$("#asof").value}`);
@@ -401,7 +415,7 @@ async function checkIn() {
   const text = [...picked, $("#question").value.trim()].filter(Boolean).join("; ");
   if (!text) return $("#question").focus();
   const user = $("#user").value, as_of = $("#asof").value;
-  $("#question").value = ""; $("#go").disabled = true; $(".intro")?.remove();
+  $("#question").value = ""; grow(); $("#go").disabled = true; $(".intro")?.remove();
   if (!convo) {
     const el = document.createElement("div"); el.className = "turn";
     $("#thread").prepend(el); convo = {el, turns: []};
@@ -531,13 +545,13 @@ async function answer(card, prep, user) {
   card.querySelector(".note button").onclick = async ev => {
     const inp = card.querySelector(".note input"); if (!inp.value.trim()) return inp.focus();
     await api("/api/note", {user, text: inp.value});
-    ev.target.textContent = "Saved"; ev.target.disabled = inp.disabled = true; refreshJournal();
+    ev.target.textContent = "Saved"; ev.target.disabled = inp.disabled = true; refreshJournal(); refreshSuggest();
   };
   refreshJournal();
   return done.text;
 }
 $("#go").onclick = checkIn;
-document.querySelectorAll(".chip").forEach(b => b.onclick = () => { newTopic(); $("#question").value = b.dataset.q; checkIn(); });
+$("#question").addEventListener("input", grow);
 $("#newtopic").onclick = () => { newTopic(); $("#question").focus(); };
 $("#question").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); checkIn(); } });
 loadUsers().then(refresh).catch(e => $("#range").textContent = `Could not load data (${e.message}). Is Zetaris running?`);

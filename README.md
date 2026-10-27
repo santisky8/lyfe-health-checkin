@@ -49,10 +49,14 @@ model.
    If Nightshift doesn't answer within 2 seconds and `NVIDIA_API_KEY` is set, the same Nemotron
    models are called on NVIDIA's own cloud instead, and "Show your work" says which one wrote
    the answer.
-8. **Only on-topic sources** (`checkin.on_topic`): every source is scored against the question
+8. **Suggested questions** (`checkin.suggestions`, `/api/suggest`): fixed rules on the
+   person's own week and notes suggest what to ask (sleep down from last week, under 7 hours,
+   long sitting, under 150 active minutes, "did it help?" on their latest note). Each shows the
+   numbers behind it. No model is involved, so a suggestion can't invent anything.
+9. **Only on-topic sources** (`checkin.on_topic`): every source is scored against the question
    by meaning; sources far behind the best match are dropped, and PubMed case reports are
    never used.
-9. **Cited answer** in four parts: possible causes, what you can do now, what the research
+10. **Cited answer** in four parts: possible causes, what you can do now, what the research
    says, see a doctor if. Sources are `[n]`, the user's numbers `[log]`, past check-ins `[m]`.
    Every cause, step and fact must cite a source: an answer with no `[n]` is rewritten once,
    citation marks that point at nothing are removed, and only the sources the answer cites

@@ -120,6 +120,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, users())
             if url.path == "/api/log":
                 return self._send(200, log(person(q["user"]), day(q.get("as_of"))))
+            if url.path == "/api/suggest":
+                return self._send(200, checkin.suggestions(person(q["user"]), day(q.get("as_of"))))
             if url.path == "/api/memory":
                 return self._send(200, memory.all_memories(person(q["user"])))
             self._send(404, {"error": "not found"})
