@@ -280,9 +280,9 @@ pre{background:var(--code);border-radius:8px;padding:8px 10px;font:11.5px/1.5 va
 .ahero{max-width:62rem}
 .eyebrow{font:600 .75rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--sun-ink);margin:0 0 10px}
 .ahero h1{font:600 clamp(1.7rem,3.2vw,2.4rem)/1.15 var(--display);margin:0 0 14px;letter-spacing:-.02em;text-wrap:balance}
-.lede{font-size:1.08rem;color:var(--muted);margin:0;max-width:66ch}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-@media (max-width:1100px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lede{font-size:1.08rem;color:var(--muted);margin:0 0 10px;max-width:66ch}
+.lede b{color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media (max-width:820px){.stats,.acards{grid-template-columns:1fr}}
 .stat{background:var(--night);color:var(--night-ink);border-radius:16px;padding:20px 22px;text-decoration:none;display:flex;flex-direction:column;gap:6px;transition:transform .2s}
 .stat:hover{transform:translateY(-2px)}
@@ -386,15 +386,15 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
 <main class="wrap apage" id="page-about" data-page="about" role="tabpanel" aria-labelledby="tab-about" hidden>
   <section class="ahero">
     <p class="eyebrow">Why I built this</p>
-    <h1>Real answers about your health, from home, from sources you can check.</h1>
-    <p class="lede">We've all been there: something feels off, it's not an emergency, but you want to be safe. I once waited twelve hours in an emergency room and went home with advice to drink honey, lemon and ginger tea. So people ask AI instead, and get confident answers with nothing behind them.</p>
+    <h1>Understand what's going on with your health, from sources you can check.</h1>
+    <p class="lede">We've all had that moment: something feels off, and you're not sure what it is or whether it's worth a doctor's visit. I once waited twelve hours in an emergency room and went home with advice to drink honey, lemon and ginger tea. I wished I'd had a trusted way to understand what was going on, and when to worry.</p>
+    <p class="lede"><b>Check-In never diagnoses and never replaces a doctor.</b> It explains what something could be, what you can safely do, and when to see a doctor, with a source behind every point.</p>
   </section>
 
   <div class="stats">
-    <a class="stat" href="https://axios.com/2026/01/05/chatgpt-openai-health-insurance-aca" target="_blank" rel="noopener"><b>40 million</b><span>people a day ask ChatGPT health questions</span><small>OpenAI report, January 2026 · Axios</small></a>
+    <a class="stat" href="https://axios.com/2026/01/05/chatgpt-openai-health-insurance-aca" target="_blank" rel="noopener"><b>40 million</b><span>people a day already ask ChatGPT health questions</span><small>OpenAI report, January 2026 · Axios</small></a>
     <a class="stat" href="https://www.kff.org/health-information-trust/poll-most-who-use-artificial-intelligence-doubt-ai-chatbots-provide-accurate-health-information/" target="_blank" rel="noopener"><b>63%</b><span>of adults aren't confident AI chatbots give accurate health information</span><small>KFF poll, 2024</small></a>
-    <a class="stat" href="https://www.cihi.ca/en/primary-and-virtual-care-access-emergency-department-visits-for-primary-care-conditions/measuring-primary-care-access-through-emergency-department-use" target="_blank" rel="noopener"><b>1 in 7</b><span>emergency visits in Canada are for colds, sore throats and the like, which a family doctor could handle; over half of those, by video from home</span><small>CIHI, 2024</small></a>
-    <a class="stat" href="https://globalnews.ca/news/11938222/emergency-room-wait-times-cihi-report/" target="_blank" rel="noopener"><b>1.5 million</b><span>people in Canada spent over 14 hours in an emergency department in 2024–25</span><small>CIHI · Global News</small></a>
+    <a class="stat" href="https://www.ox.ac.uk/news/2026-02-10-new-study-warns-risks-ai-chatbots-giving-medical-advice" target="_blank" rel="noopener"><b>No better</b><span>decisions with an AI chatbot than with a web search: its answers mixed good and bad advice that people couldn't tell apart</span><small>University of Oxford trial, ~1,300 people · Nature Medicine, 2026</small></a>
   </div>
 
   <section class="asec">
