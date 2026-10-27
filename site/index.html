@@ -56,11 +56,16 @@ h2{font-size:clamp(28px,4vw,40px);letter-spacing:-.01em}
 /* lub-dub, in step with the line */
 @keyframes pump{0%,40%,100%{transform:scale(1)}12%{transform:scale(1.12)}24%{transform:scale(1.02)}32%{transform:scale(1.08)}}
 /* hover: the name flips up and away, the motto rotates in from below, then they swap back */
-.brand .flip{position:relative;display:block;height:30px;perspective:600px}
-.brand .face{display:block;line-height:30px;white-space:nowrap;backface-visibility:hidden;transform-origin:50% 50%}
-.brand .motto{position:absolute;left:0;top:0;font:600 18px/30px var(--body);color:#f4f7fb;opacity:0;transform:translateY(60%) rotateX(-90deg)}
-.brand .motto i{font-style:normal;font-weight:800;color:#22c55e}
-.brand .motto em{font-style:normal;font-weight:800;color:var(--sun)}
+/* the text box is exactly the heart's height, so name and motto sit on the logo's centre line */
+.brand .flip{position:relative;display:block;height:44px;perspective:600px}
+.brand .face{display:block;height:44px;line-height:44px;white-space:nowrap;backface-visibility:hidden;transform-origin:50% 50%}
+.brand b.face{line-height:44px}
+.brand .motto{position:absolute;left:0;top:0;font:700 26px/44px var(--display);letter-spacing:-.015em;color:#f4f7fb;opacity:0;transform:translateY(60%) rotateX(-90deg)}
+.brand .motto i{font-style:normal;color:#22c55e}
+.brand .motto em{font-style:normal;color:var(--sun)}
+@media (max-width:760px){.brand .motto{font-size:min(26px,3.6vw)}}
+.badge{transition:opacity .3s ease}
+.top:has(.brand.play) .badge{opacity:0}  /* the long motto needs the badge's room for a moment */
 .brand.play .name{animation:name-out 3.4s cubic-bezier(.3,.7,.3,1) both}
 .brand.play .motto{animation:motto-in 3.4s cubic-bezier(.3,.7,.3,1) both}
 @keyframes name-out{0%{opacity:1;transform:none}12%,86%{opacity:0;transform:translateY(-60%) rotateX(90deg)}87%{opacity:0;transform:translateY(60%) rotateX(-90deg)}100%{opacity:1;transform:none}}
