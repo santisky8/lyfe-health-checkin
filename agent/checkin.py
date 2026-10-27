@@ -147,7 +147,7 @@ def guideline_checks(sleep_minutes, active_per_week):
 
 
 def suggestions(user_id, as_of=None, limit=3):
-    """Questions worth asking, read from this person's own week, each with the numbers behind it.
+    """Questions worth asking, read from this person's own week, each with the facts behind it.
     Fixed rules on the Zetaris log and the person's notes, not the model: instant, can't invent
     anything, and every suggestion can say exactly why it is shown."""
     week = user_summary(user_id, as_of=as_of)
@@ -156,32 +156,36 @@ def suggestions(user_id, as_of=None, limit=3):
     before = user_summary(user_id, as_of=str(date.fromisoformat(week["from"]) - timedelta(days=1)))
     sleep, out = week["avg_sleep_hours"], []
     notes = [m for m in memory.all_memories(user_id) if m.get("source") == "user_report"]
+    active = week["moderate_or_vigorous_minutes_per_week"]
     if notes:  # follow up on the latest thing they tried
         tried = notes[-1]["content"].removeprefix("User reported: ").rstrip(".")
-        change = (f"; sleep went from {before['avg_sleep_hours']} h to {sleep} h"
-                  if before and before["avg_sleep_hours"] and sleep else "")
-        out.append({"q": f"Did this help: {tried.lower()}?",
-                    "why": f"You noted \"{tried}\"{change}"})
+        facts = [f"You noted: {tried}"]
+        if before and before["avg_sleep_hours"] and sleep:
+            facts.append(f"Sleep {before['avg_sleep_hours']} h → {sleep} h a night")
+        out.append({"q": f"Did this help: {tried.lower()}?", "facts": facts})
     if sleep is not None and before and before["avg_sleep_hours"] \
             and before["avg_sleep_hours"] - sleep >= 0.5:
         out.append({"q": "Why has my sleep gotten worse this week, and what can I change?",
-                    "why": f"{sleep} h a night, down from {before['avg_sleep_hours']} h the week before"})
+                    "facts": [f"{sleep} h a night this week",
+                              f"{before['avg_sleep_hours']} h the week before"]})
     if sleep is not None and sleep < 7:
         out.append({"q": "I'm sleeping under 7 hours. Why am I tired in the afternoon, and what helps?",
-                    "why": f"{sleep} h a night; {week['nights_under_7h']} of {week['nights_logged']} "
-                           "nights under the 7-hour guideline"})
+                    "facts": [f"{sleep} h a night",
+                              f"{week['nights_under_7h']} of {week['nights_logged']} nights under 7 h",
+                              "Goal: 7 h or more"]})
     if week["avg_sedentary_hours"] >= 10:
+        awake = 24 - (sleep or 8)
         out.append({"q": f"I sit about {round(week['avg_sedentary_hours'])} hours a day. "
                          "What does that do to my body, and what helps?",
-                    "why": f"{week['avg_sedentary_hours']} h sitting a day on average"})
+                    "facts": [f"{week['avg_sedentary_hours']} h sitting a day",
+                              f"{round(100 * min(week['avg_sedentary_hours'], awake) / awake)}% of your "
+                              "waking hours"]})
     if not week["checks"]["activity_meets_150_min_guideline"]:
         out.append({"q": "How can I fit 150 minutes of exercise into my week?",
-                    "why": f"{week['moderate_or_vigorous_minutes_per_week']} active minutes this "
-                           "week; the guideline is 150"})
+                    "facts": [f"{active} active minutes this week", "Goal: 150 a week"]})
     if not out:
         out.append({"q": "I'm meeting my sleep and activity goals. What else should I watch?",
-                    "why": f"{sleep} h sleep a night and "
-                           f"{week['moderate_or_vigorous_minutes_per_week']} active minutes a week"})
+                    "facts": [f"{sleep} h sleep a night", f"{active} active minutes a week"]})
     return out[:limit]
 
 
@@ -523,7 +527,7 @@ def cited(text):
     return list(dict.fromkeys(int(n) for n in re.findall(r"\[(\d+)\]", text)))
 
 
-VISIT = re.compile(r"\s*(?:[-*•]|\d+[.)])\s+(?:\*\*)?(?:tell|bring|mention|note|share|keep a|try (?:this|these))\b", re.I)
+VISIT = re.compile(r"\s*(?:[-*•]|\d+[.)])\s+(?:\*\*)?(?:tell|bring|mention|note|share|keep a|try (?:this|these)|track|log)\b", re.I)
 
 
 LIST_ITEM = re.compile(r"\s*(?:[-*•]|\d+[.)])\s+")

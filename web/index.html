@@ -84,7 +84,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 14px;text-align:left;cursor:pointer;display:grid;gap:4px}
 .chip b{font-weight:600;font-size:.95rem;line-height:1.35}
-.chip small{color:var(--muted);font-size:.8rem;line-height:1.35}
+.chip .facts{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;margin-top:4px}
+.chip .facts small{width:100%;font:600 .66rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.chip .facts i{font-style:normal;font-size:.78rem;font-weight:600;background:var(--sun-soft);color:var(--sun-ink);border-radius:999px;padding:2px 9px}
 .chip:hover,.chip:focus-visible{border-color:var(--sun)}
 .chip:hover b{color:var(--sun-ink)}
 .turn{display:flex;flex-direction:column;gap:12px}
@@ -121,6 +123,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .block svg{flex:none}
 .cite{display:inline-flex;align-items:center;font:500 .7rem/1 var(--mono);padding:3px 6px;border-radius:5px;background:var(--code);color:var(--ink);border:0;cursor:pointer;vertical-align:2px;margin:0 1px}
 .nosrc{display:inline-block;font:500 .66rem/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:3px 6px;border-radius:5px;background:var(--line);color:var(--muted);vertical-align:2px;margin-left:4px}
+.cite.log,.cite.mem{font:600 .74rem/1 var(--body);padding:4px 7px;margin:0 3px}
 .cite.log{background:var(--calm-soft);color:var(--calm)}
 .cite.mem{background:var(--mem-soft);color:var(--mem)}
 .foot{border-top:1px solid var(--line);margin-top:18px;padding-top:12px;font-size:.88rem}
@@ -399,7 +402,7 @@ function refresh() { refreshWeek(); refreshJournal(); refreshSuggest(); }
 // Questions read from this person's week and notes (server rules, not the model), each with why.
 async function refreshSuggest() {
   const list = await api(`/api/suggest?user=${encodeURIComponent($("#user").value)}&as_of=${$("#asof").value}`);
-  $("#chips").innerHTML = list.map(x => `<button class="chip" data-q="${esc(x.q)}"><b>${esc(x.q)}</b><small>Because: ${esc(x.why)}</small></button>`).join("");
+  $("#chips").innerHTML = list.map(x => `<button class="chip" data-q="${esc(x.q)}"><b>${esc(x.q)}</b><span class="facts"><small>Based on</small>${x.facts.map(f => `<i>${esc(f)}</i>`).join("")}</span></button>`).join("");
   $("#suggest").hidden = !list.length;
   $("#chips").querySelectorAll(".chip").forEach(c => c.classList.add("spotlight")); stagger($("#chips").children);
   $("#chips").querySelectorAll(".chip").forEach(b => b.onclick = () => { newTopic(); $("#question").value = b.dataset.q; grow(); checkIn(); });
@@ -416,6 +419,7 @@ async function refreshWeek() {
   const steps = last7.reduce((a, r) => a + +r.steps, 0) / Math.max(last7.length, 1);
   const short = sl.filter(m => m < 420).length;
   const first = last7[0]?.day, lastDay = last7[last7.length - 1]?.day;
+  weekRange = first ? `${fmt(first)} to ${fmt(lastDay)}` : "";
   $("#range").textContent = first ? `${fmt(first)} to ${fmt(lastDay)} · person ${users.find(u => u.user_id === $("#user").value)?.n ?? ""}` : "No data for this week";
   $("#hello").innerHTML = sleep == null ? "Here's your week." : sleep >= 7 ? "You slept well this week." : `You slept <em>${sleep.toFixed(1)} hours</em> a night this week.`;
   blurWords($("#hello"));
@@ -439,7 +443,7 @@ async function refreshWeek() {
 }
 
 // ---------- journal ----------
-let journal = [], jfilter = "all", lastPast = [];
+let journal = [], jfilter = "all", lastPast = [], renderPast = null, weekRange = "";
 async function refreshJournal() {
   journal = await api(`/api/memory?user=${encodeURIComponent($("#user").value)}`);
   $("#jcount").textContent = journal.length || "";
@@ -469,7 +473,7 @@ function renderJournal() {
       ${sec("Possible causes it checked", e.considered.length ? `<div class="tags">${e.considered.map(c => `<span>${esc(c)}</span>`).join("")}</div>` : "")}
       ${sec("What it suggested", e.steps.length ? `<ul class="jsteps">${e.steps.map(st => `<li>${esc(st)}</li>`).join("")}</ul>` : "")}
       ${e.data ? `<p class="jdata">Your log at the time: ${esc(e.data)}</p>` : ""}
-      ${m.answer ? `<details class="full"><summary>Read the full answer</summary><div class="fullans">${render(m.answer)}</div></details>`
+      ${m.answer ? `<details class="full"><summary>Read the full answer</summary><div class="fullans">${renderOld(m.answer)}</div></details>`
         : ""}
       <div class="jfoot">${conf}<button type="button" data-again="${esc(e.question)}">Ask again</button></div>
     </article>`;
@@ -510,8 +514,13 @@ const ICON = {
 function inline(s) {
   let h = esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   h = h.replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, "$1<em>$2</em>");
-  h = h.replace(/\[(log|checks)\]/g, '<button class="cite log" data-go="week" title="From your own log">your log</button>');
-  h = h.replace(/\[m(\d+)\]/g, '<button class="cite mem" data-go="journal" data-m="$1" title="From a past check-in">memory $1</button>');
+  // Say what the person's own evidence is: their Fitbit week, or a dated earlier check-in.
+  h = h.replace(/\[(log|checks)\]/g, () => `<button class="cite log" data-go="week" title="Your Fitbit data${weekRange ? ", " + esc(weekRange) : ""}">Your Fitbit week</button>`);
+  h = h.replace(/\[m(\d+)\]/g, (_, n) => {
+    const m = renderPast?.[n - 1], q = m?.content.match(/asked "([^"\n]*)/)?.[1] || m?.content.replace(/^\w+: /, "") || "";
+    const label = m ? `Your check-in · ${new Date(m.learnedAt).toLocaleDateString("en", {month:"short", day:"numeric"})}` : "Your earlier check-in";
+    return `<button class="cite mem" data-go="journal" data-m="${n}" title="${esc(q ? "You asked: " + q : "From an earlier check-in")}">${label}</button>`;
+  });
   return h.replace(/\[(\d+)\]/g, '<button class="cite" data-src="$1" title="Source $1">$1</button>');
 }
 // Lines starting "- ", "* " or "1. " become lists; other lines stay a paragraph.
@@ -526,13 +535,15 @@ function lines(p, sourced = false) {
     flush();
     if (list !== kind) { close(); html += `<${kind}>`; list = kind; }
     // A cause or step with no [n] is the model's general knowledge: say so instead of hiding it.
-    const loose = sourced && !/\[\d+\]/.test(m[3]) && !/^(\*\*)?(tell|bring|mention|note|share|keep a|try (this|these))\b/i.test(m[3]) ? ' <span class="nosrc" title="No source supports this line: general advice from the model">no source</span>' : "";
+    const loose = sourced && !/\[\d+\]/.test(m[3]) && !/^(\*\*)?(tell|bring|mention|note|share|keep a|try (this|these)|track|log)\b/i.test(m[3]) ? ' <span class="nosrc" title="No source supports this line: general advice from the model">no source</span>' : "";
     html += `<li>${inline(m[3])}${loose}</li>`;
   }
   close(); flush();
   return html;
 }
 const paras = (s, sourced) => s.trim() ? s.trim().split(/\n\s*\n/).map(p => lines(p.trim(), sourced)).join("") : "";
+// A saved answer's [m1] points at what was recalled back then, not now: label it generically.
+function renderOld(text) { const keep = renderPast; renderPast = null; try { return render(text); } finally { renderPast = keep; } }
 function render(text) {
   // Split on bold headings that start a line, such as **Try this week**: and **See a doctor if**:
   // Bold words inside a line ("1. **Sleep deprivation** – ...") stay in their list item.
@@ -655,7 +666,7 @@ function askBack(c, card, ask) {
 // Evidence first, then the answer streamed as the model writes it. Returns the final text.
 async function answer(card, prep, user) {
   const s = prep.summary, nSrc = prep.sources.length, tm = prep.timings || {};
-  lastPast = prep.past;
+  lastPast = renderPast = prep.past;
   const lib = prep.sources.filter(x => x.kind !== "research"), papers = prep.sources.filter(x => x.kind === "research");
   const base = [
     {state:"done", by:"Safety", title:"No danger signs", detail:"Safe to give everyday advice"},
