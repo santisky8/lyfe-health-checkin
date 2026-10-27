@@ -203,7 +203,7 @@ General health information, not medical advice.
 
 - `site/`: one static page (problem, how it works, sponsor tech, screenshots, video), live at
   https://santisky8.github.io/lyfe-health-checkin/ (the `gh-pages` branch holds a copy of
-  `site/`; the older Netlify copy may be out of date). It checks `<demo>/api/status` every minute and only enables the "Try the live
+  `site/`). It checks `<demo>/api/status` every minute and only enables the "Try the live
   demo" button while the demo answers.
 - `demo_service.sh`: run at login by the systemd user service `lyfe-checkin-demo`. It starts
   Docker Desktop, waits for Zetaris, then runs a public-mode copy of the app on port 8766

@@ -36,7 +36,7 @@ PUBLIC = os.environ.get("PUBLIC") == "1"
 _prepared = {}  # evidence waiting for /api/stream, by id; oldest dropped past MAX_WAITING
 MAX_WAITING = 100
 _lock = threading.Lock()
-EMBEDDERS = "https://santisky8.github.io https://lyfe-health-checkin.netlify.app"
+EMBEDDERS = "https://santisky8.github.io"
 # Public mode: limits per caller and in total, so nobody can spend the NVIDIA key or fill the
 # disk with memory folders by looping on the API. (max requests, per seconds)
 LIMITS = {"model": [(10, 60), (300, 86400)], "memory": [(60, 60), (3000, 86400)]}
