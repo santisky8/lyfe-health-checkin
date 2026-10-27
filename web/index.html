@@ -315,7 +315,7 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:.85rem;padd
       <p class="asksub" id="greetsub">Tell me how you've been, or start with one of the ideas below.</p>
       <div class="askrow">
         <textarea id="question" rows="3" placeholder="Tell me in your own words, like you'd tell a friend. For example: I've been tired every afternoon this week"></textarea>
-        <button class="go" id="go">Let's talk</button>
+        <button class="go" id="go">Start my check-in</button>
         <button class="newtopic" id="newtopic" hidden>New conversation</button>
       </div>
       <div class="suggest" id="suggest" hidden>
@@ -591,7 +591,7 @@ let convo = null;  // {el, turns: [{role, content, kind}]}
 
 function newTopic() {
   convo = null;
-  $("#question").placeholder = PLACEHOLDER; $("#go").textContent = "Let's talk"; $("#newtopic").hidden = true;
+  $("#question").placeholder = PLACEHOLDER; $("#go").textContent = "Start my check-in"; $("#newtopic").hidden = true;
 }
 
 function replyMode(placeholder, button) {
