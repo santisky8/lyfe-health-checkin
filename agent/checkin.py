@@ -602,7 +602,7 @@ def journal_entry(m):
     if not found:
         return {"kind": "other", "text": text}
     entry = {"kind": "checkin", "question": "", "follow_up": None, "answers": [],
-             "considered": [], "data": None, "steps": []}
+             "considered": [], "data": None, "steps": [], "early": False}
     for part in found.group(1).split("\n\n"):  # the conversation as clarify.case_text folds it
         if part.startswith("My answers:"):
             for line in part.splitlines()[1:]:
@@ -623,9 +623,15 @@ def journal_entry(m):
         elif part.startswith("suggested: ") and len(part) > len("suggested: ") + 3:
             tip = part.removeprefix("suggested: ").removeprefix("Try this: ")
             # Older check-ins kept only the first step, cut at 300 characters.
-            entry["steps"] = [whole_sentences(tip, 290) if len(tip) >= 290 else tip + "."] \
-                if " / " not in tip else [st if st.endswith((".", "!", "?")) else st + "."
-                                          for st in tip.split(" / ")]
+            tip = re.sub(r"\s*\[(?:\d+|log|m\d+)(?:,\s*(?:\d+|log|m\d+))*\]", "", tip)
+            tip = re.sub(r"\s+([,.;])", r"\1", tip)
+            steps = [whole_sentences(tip, 290) if len(tip) >= 290 else tip] \
+                if " / " not in tip else tip.split(" / ")
+            # Older check-ins sometimes kept a broken fragment ("Apply a."): drop anything that
+            # isn't a real step.
+            entry["steps"] = [st.strip().rstrip(" .") + "." for st in steps
+                              if len(st.split()) >= 4]
+            entry["early"] = " / " not in tip
     return entry
 
 
