@@ -374,7 +374,7 @@ footer .wrap{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
 
 <script>
 // Live demo address (Tailscale Funnel) and demo video (YouTube id). Empty video id hides the section.
-const DEMO = "https://santi.tail93d927.ts.net";
+const DEMO = "https://lyfe-events.tail93d927.ts.net";
 const VIDEO = "pd6DNtmnUbw";
 
 if (VIDEO) {
@@ -409,13 +409,13 @@ async function check() {
   try {
     const r = await fetch(`${DEMO}/api/status`, {cache: "no-store", signal: AbortSignal.timeout(6000)});
     show(r.ok ? (await r.json()).live === true : false);
-  } catch { show(null); }
+  } catch { show(false); }
 }
 check();
 setInterval(check, 60000);
 
 // The pop-up: the live app when the demo is up, else the demo video.
-let liveNow = null;
+let liveNow = false;
 const modal = document.querySelector(".modal");
 function openApp(ev) {
   ev && ev.preventDefault();
